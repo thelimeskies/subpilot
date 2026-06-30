@@ -27,3 +27,4 @@ __pycache__/
 # Product planning and local research artifacts
 docs/
 nomba_api_test/
+.qoder/
