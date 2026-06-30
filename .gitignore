@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build output
+dist/
+storybook-static/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# OS and editor files
+.DS_Store
+*.swp
+*.swo
+
+# Product planning and local research artifacts
+docs/
+nomba_api_test/

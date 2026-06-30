@@ -1,0 +1,41 @@
+{
+  "name": "subpilot-frontend-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm --workspace @subpilot/admin run dev",
+    "dev:merchant": "npm --workspace @subpilot/merchant-dashboard run dev",
+    "dev:customer-portal": "npm --workspace @subpilot/customer-portal-app run dev",
+    "dev:portal-demo": "npm --workspace @subpilot/portal-demo run dev",
+    "dev:landing": "npm --workspace @subpilot/landing-page run dev",
+    "build": "npm run build:ui && npm run build:portal-js && npm run build:admin && npm run build:merchant && npm run build:customer-portal && npm run build:portal-demo && npm run build:landing",
+    "build:ui": "npm --workspace @subpilot/ui run build",
+    "build:portal-js": "npm --workspace @subpilot/portal-js run build",
+    "build:admin": "npm --workspace @subpilot/admin run build",
+    "build:merchant": "npm --workspace @subpilot/merchant-dashboard run build",
+    "build:customer-portal": "npm --workspace @subpilot/customer-portal-app run build",
+    "build:portal-demo": "npm --workspace @subpilot/portal-demo run build",
+    "build:landing": "npm --workspace @subpilot/landing-page run build",
+    "storybook": "npm --workspace @subpilot/ui run storybook",
+    "build-storybook": "npm --workspace @subpilot/ui run build-storybook",
+    "typecheck": "npm --workspaces run typecheck"
+  },
+  "devDependencies": {
+    "@esbuild/darwin-arm64": "0.27.7",
+    "@storybook/addon-essentials": "8.6.14",
+    "@storybook/addon-interactions": "8.6.14",
+    "@storybook/react": "8.6.14",
+    "@storybook/react-vite": "8.6.14",
+    "@types/node": "^24.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "storybook": "8.6.14",
+    "typescript": "^5.5.4",
+    "vite": "^6.3.5"
+  }
+}

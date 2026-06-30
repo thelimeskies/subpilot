@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "subpilot"
+version = "0.1.0"
+description = "Python client for the SubPilot recurring billing API."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "SubPilot" }]
+keywords = ["subpilot", "billing", "subscriptions", "customer-portal"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries"
+]
+
+[project.urls]
+Documentation = "https://subpilot.dev/developers/customers"
+Source = "https://github.com/subpilot/subpilot"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/subpilot"]
