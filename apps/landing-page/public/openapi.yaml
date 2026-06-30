@@ -1,0 +1,1066 @@
+openapi: 3.1.0
+info:
+  title: SubPilot API
+  version: 2026-06-20
+  summary: Customer, subscription, invoice, portal, and webhook APIs for recurring billing.
+  description: >
+    SubPilot provides customer records, tokenized payment methods, subscriptions,
+    invoices, short-lived customer portal sessions, embedded portal runtime
+    endpoints, publishable frontend keys, and signed webhook events.
+servers:
+  - url: https://api.subpilot.dev/api/v1
+    description: Production
+  - url: http://localhost:8000/api/v1
+    description: Local development
+security:
+  - secretApiKey: []
+tags:
+  - name: Customers
+    description: Merchant-server APIs for customer records and lifecycle.
+  - name: Payment Methods
+    description: Masked tokenized card references. Raw card data is never exposed.
+  - name: Portal Sessions
+    description: Short-lived customer self-service sessions created server-side.
+  - name: Portal Runtime
+    description: Customer-scoped endpoints used by hosted and embedded portals.
+  - name: Publishable Keys
+    description: Browser-safe keys for SDK initialization.
+  - name: Subscriptions
+    description: Subscription lifecycle APIs.
+  - name: Invoices
+    description: Invoice collection and retry APIs.
+  - name: Webhooks
+    description: Outbound webhook endpoints and replay.
+paths:
+  /customers/:
+    get:
+      tags: [Customers]
+      summary: List customers
+      operationId: listCustomers
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Customers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      operationId: createCustomer
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerRequest"
+      responses:
+        "201":
+          description: Customer created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /customers/{customer_id}/:
+    get:
+      tags: [Customers]
+      summary: Retrieve a customer
+      operationId: getCustomer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Customers]
+      summary: Update a customer
+      operationId: updateCustomer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerRequest"
+      responses:
+        "200":
+          description: Updated customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+  /customers/{customer_id}/archive/:
+    post:
+      tags: [Customers]
+      summary: Archive a customer
+      operationId: archiveCustomer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Customer archived; active subscriptions may be paused.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Customer"
+                  - type: object
+                    properties:
+                      paused_subscriptions:
+                        type: integer
+                      email_sent:
+                        type: boolean
+  /customers/{customer_id}/reactivate/:
+    post:
+      tags: [Customers]
+      summary: Reactivate an archived customer
+      operationId: reactivateCustomer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Reactivated customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+  /customers/{customer_id}/merge/:
+    post:
+      tags: [Customers]
+      summary: Merge one customer into another
+      operationId: mergeCustomer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_customer_id]
+              properties:
+                target_customer_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Merge result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MergeCustomerResponse"
+  /customers/{customer_id}/payment-methods/:
+    get:
+      tags: [Payment Methods]
+      summary: List a customer's payment methods
+      operationId: listCustomerPaymentMethods
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Masked payment methods.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+    post:
+      tags: [Payment Methods]
+      summary: Attach a tokenized payment method to a customer
+      operationId: attachCustomerPaymentMethod
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachPaymentMethodRequest"
+      responses:
+        "201":
+          description: Payment method attached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+  /payment-methods/:
+    get:
+      tags: [Payment Methods]
+      summary: List tenant payment methods
+      operationId: listPaymentMethods
+      responses:
+        "200":
+          description: Masked payment methods.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+  /payment-methods/{payment_method_id}/set-default/:
+    post:
+      tags: [Payment Methods]
+      summary: Set default payment method
+      operationId: setDefaultPaymentMethod
+      parameters:
+        - $ref: "#/components/parameters/PaymentMethodId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Updated payment method.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+  /customers/{customer_id}/portal-sessions/:
+    get:
+      tags: [Portal Sessions]
+      summary: List portal sessions for a customer
+      operationId: listCustomerPortalSessions
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Portal sessions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PortalSession"
+    post:
+      tags: [Portal Sessions]
+      summary: Create a customer portal session
+      operationId: createCustomerPortalSession
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePortalSessionRequest"
+      responses:
+        "201":
+          description: Portal session created. Plaintext token is returned once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalSessionCreateResponse"
+  /portal-sessions/:
+    get:
+      tags: [Portal Sessions]
+      summary: List tenant portal sessions
+      operationId: listPortalSessions
+      responses:
+        "200":
+          description: Portal sessions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PortalSession"
+  /portal/context:
+    get:
+      tags: [Portal Runtime]
+      summary: Load embedded or hosted portal context
+      operationId: getPortalContext
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+      responses:
+        "200":
+          description: Customer-scoped portal context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalContext"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /portal/invoices:
+    get:
+      tags: [Portal Runtime]
+      summary: List customer invoices in the portal
+      operationId: listPortalInvoices
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+      responses:
+        "200":
+          description: Invoices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+  /portal/invoices/{invoice_id}/pay:
+    post:
+      tags: [Portal Runtime]
+      summary: Pay an invoice from the portal
+      operationId: payPortalInvoice
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+        - $ref: "#/components/parameters/InvoiceId"
+      responses:
+        "200":
+          description: Payment succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalPayInvoiceResponse"
+        "402":
+          description: Payment failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalPayInvoiceResponse"
+  /portal/payment-methods:
+    get:
+      tags: [Portal Runtime]
+      summary: List customer payment methods in the portal
+      operationId: listPortalPaymentMethods
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+      responses:
+        "200":
+          description: Payment methods.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+    post:
+      tags: [Portal Runtime]
+      summary: Attach a payment method from the portal
+      operationId: attachPortalPaymentMethod
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachPaymentMethodRequest"
+      responses:
+        "201":
+          description: Payment method attached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+  /portal/payment-methods/{payment_method_id}/set-default:
+    post:
+      tags: [Portal Runtime]
+      summary: Set portal customer default payment method
+      operationId: setPortalDefaultPaymentMethod
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+        - $ref: "#/components/parameters/PaymentMethodId"
+      responses:
+        "200":
+          description: Updated payment method.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+  /portal/subscriptions/{subscription_id}/cancel:
+    post:
+      tags: [Portal Runtime]
+      summary: Cancel a customer subscription from the portal
+      operationId: cancelPortalSubscription
+      security:
+        - portalToken: []
+      parameters:
+        - $ref: "#/components/parameters/PublishableKey"
+        - $ref: "#/components/parameters/SubscriptionId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                at_period_end:
+                  type: boolean
+                  default: true
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Updated subscription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+  /api-keys/publishable-key/:
+    get:
+      tags: [Publishable Keys]
+      summary: List merchant publishable keys
+      operationId: listPublishableKeys
+      responses:
+        "200":
+          description: Publishable keys for merchant environments.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublishableKey"
+    post:
+      tags: [Publishable Keys]
+      summary: Rotate one publishable key
+      operationId: rotatePublishableKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [test, live]
+      responses:
+        "200":
+          description: Rotated publishable key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishableKey"
+  /subscriptions/:
+    get:
+      tags: [Subscriptions]
+      summary: List subscriptions
+      operationId: listSubscriptions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/SubscriptionStatus"
+      responses:
+        "200":
+          description: Subscriptions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subscription"
+    post:
+      tags: [Subscriptions]
+      summary: Create a subscription
+      operationId: createSubscription
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Subscription created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+  /invoices/:
+    get:
+      tags: [Invoices]
+      summary: List invoices
+      operationId: listInvoices
+      responses:
+        "200":
+          description: Invoices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+  /invoices/{invoice_id}/retry/:
+    post:
+      tags: [Invoices]
+      summary: Retry invoice payment
+      operationId: retryInvoicePayment
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Retry accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+  /webhook-endpoints/:
+    get:
+      tags: [Webhooks]
+      summary: List webhook endpoints
+      operationId: listWebhookEndpoints
+      responses:
+        "200":
+          description: Webhook endpoints.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    post:
+      tags: [Webhooks]
+      summary: Create webhook endpoint
+      operationId: createWebhookEndpoint
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                event_filters:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Webhook endpoint created.
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  securitySchemes:
+    secretApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: nse_test_... or nse_live_...
+      description: Merchant secret API key. Use server-side only.
+    portalToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Customer portal token. Format `Portal portal_...`.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 8
+      description: Recommended for every mutating merchant-server request.
+    PublishableKey:
+      name: X-SubPilot-Publishable-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        example: pk_test_...
+      description: Browser-safe key sent by `@subpilot/portal-js`.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    CustomerId:
+      name: customer_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PaymentMethodId:
+      name: payment_method_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SubscriptionId:
+      name: subscription_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InvoiceId:
+      name: invoice_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    CreateCustomerRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ada@example.com
+        name:
+          type: string
+          example: Ada Okafor
+        phone:
+          type: string
+          example: "+2348000000000"
+        external_id:
+          type: string
+          example: user_123
+        metadata:
+          type: object
+          additionalProperties: true
+    UpdateCustomerRequest:
+      allOf:
+        - $ref: "#/components/schemas/CreateCustomerRequest"
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [active, archived]
+    Customer:
+      type: object
+      required: [id, email, status, metadata, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        external_id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MergeCustomerResponse:
+      type: object
+      required: [ok, source_customer_id, target_customer_id, counts, target]
+      properties:
+        ok:
+          type: boolean
+        source_customer_id:
+          type: string
+          format: uuid
+        target_customer_id:
+          type: string
+          format: uuid
+        counts:
+          type: object
+          properties:
+            subscriptions:
+              type: integer
+            invoices:
+              type: integer
+            payment_methods:
+              type: integer
+            portal_sessions:
+              type: integer
+        target:
+          $ref: "#/components/schemas/Customer"
+    AttachPaymentMethodRequest:
+      type: object
+      required: [provider, token]
+      properties:
+        provider:
+          type: string
+          enum: [mock, nomba]
+        token:
+          type: string
+          writeOnly: true
+          description: Tokenized card reference from a provider, never raw card data.
+        brand:
+          type: string
+          example: Visa
+        last4:
+          type: string
+          example: "4242"
+        exp_month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        exp_year:
+          type: integer
+          minimum: 2000
+        fingerprint:
+          type: string
+        set_default:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+          additionalProperties: true
+    PaymentMethod:
+      type: object
+      required: [id, customer, provider, status, is_default, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum: [mock, nomba]
+        brand:
+          type: string
+        last4:
+          type: string
+        exp_month:
+          type: integer
+          nullable: true
+        exp_year:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [active, revoked, expired]
+        is_default:
+          type: boolean
+        fingerprint:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreatePortalSessionRequest:
+      type: object
+      properties:
+        subscription_id:
+          type: string
+          format: uuid
+          nullable: true
+        invoice_id:
+          type: string
+          format: uuid
+          nullable: true
+        send_email:
+          type: boolean
+          default: false
+        allowed_actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalAction"
+        return_url:
+          type: string
+          format: uri
+        ttl_minutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          default: 60
+    PortalAction:
+      type: string
+      enum:
+        - view_subscriptions
+        - view_invoices
+        - update_payment_method
+        - pay_invoice
+        - cancel_subscription
+    PortalSession:
+      type: object
+      required: [id, customer, allowed_actions, expires_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer:
+          type: string
+          format: uuid
+        subscription:
+          type: string
+          format: uuid
+          nullable: true
+        invoice:
+          type: string
+          format: uuid
+          nullable: true
+        allowed_actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalAction"
+        return_url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    PortalSessionCreateResponse:
+      type: object
+      required: [session, token, url, email_queued]
+      properties:
+        session:
+          $ref: "#/components/schemas/PortalSession"
+        token:
+          type: string
+          example: portal_07Jptw0MRReiux9rU5vfAXWt-0pCALgQ
+          description: Plaintext portal token. Returned exactly once.
+        url:
+          type: string
+          format: uri
+        email_queued:
+          type: boolean
+    PortalContext:
+      type: object
+      required: [session, customer, subscriptions, invoices, payment_methods, merchant, allowed_actions]
+      properties:
+        session:
+          $ref: "#/components/schemas/PortalSession"
+        customer:
+          $ref: "#/components/schemas/Customer"
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subscription"
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        payment_methods:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentMethod"
+        merchant:
+          $ref: "#/components/schemas/PortalMerchant"
+        allowed_actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalAction"
+    PortalMerchant:
+      type: object
+      required: [name, legal_name, brand_color, allow_cancel, allow_pause, allow_change_plan]
+      properties:
+        name:
+          type: string
+        legal_name:
+          type: string
+        brand_color:
+          type: string
+          example: "#056058"
+        logo_url:
+          type: string
+          nullable: true
+        portal_subdomain:
+          type: string
+        allow_cancel:
+          type: boolean
+        allow_pause:
+          type: boolean
+        allow_change_plan:
+          type: boolean
+        success_url:
+          type: string
+        cancel_url:
+          type: string
+    PortalPayInvoiceResponse:
+      type: object
+      required: [invoice, success]
+      properties:
+        invoice:
+          $ref: "#/components/schemas/Invoice"
+        success:
+          type: boolean
+        failure_code:
+          type: string
+          nullable: true
+        failure_category:
+          type: string
+          nullable: true
+    PublishableKey:
+      type: object
+      required: [mode, publishable_key]
+      properties:
+        mode:
+          type: string
+          enum: [test, live]
+        publishable_key:
+          type: string
+          example: pk_test_123
+    Subscription:
+      type: object
+      required: [id, customer_id, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          format: uuid
+        plan_name:
+          type: string
+        status:
+          $ref: "#/components/schemas/SubscriptionStatus"
+        current_period_start:
+          type: string
+          format: date-time
+          nullable: true
+        current_period_end:
+          type: string
+          format: date-time
+          nullable: true
+        cancel_at_period_end:
+          type: boolean
+        canceled_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    SubscriptionStatus:
+      type: string
+      enum: [incomplete, trialing, active, past_due, paused, cancelled]
+    Invoice:
+      type: object
+      required: [id, customer_id, status, total_minor, amount_due_minor, currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        customer_id:
+          type: string
+          format: uuid
+        subscription_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          $ref: "#/components/schemas/InvoiceStatus"
+        subtotal_minor:
+          type: integer
+        total_minor:
+          type: integer
+        amount_due_minor:
+          type: integer
+        currency:
+          type: string
+          example: NGN
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    InvoiceStatus:
+      type: string
+      enum: [draft, open, paid, past_due, void, uncollectible]
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        reason:
+          type: string
+        type:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object

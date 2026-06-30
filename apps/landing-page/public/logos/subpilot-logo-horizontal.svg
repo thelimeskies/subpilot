@@ -1,0 +1,13 @@
+<svg width="760" height="180" viewBox="0 0 760 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot horizontal logo</title>
+  <desc id="desc">SubPilot wordmark with a minimal deep ink S mark and teal signal.</desc>
+  <g transform="translate(24 24)">
+    <rect width="132" height="132" rx="32" fill="#0B1720"/>
+    <path d="M84 36H58C46 36 37 45 37 56C37 68 46 76 58 76H74C86 76 95 85 95 96C95 108 86 117 74 117H42" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M103 36H89" stroke="#14B8A6" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="103" cy="117" r="7" fill="#14B8A6"/>
+    <circle cx="111" cy="24" r="7" fill="#14B8A6"/>
+  </g>
+  <text x="188" y="96" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="850" letter-spacing="0">SubPilot</text>
+  <text x="190" y="132" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="500" letter-spacing="0">Subscription operations, guided from checkout to renewal.</text>
+</svg>

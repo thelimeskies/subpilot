@@ -1,0 +1,49 @@
+<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot Recovery Queue Mockup</title>
+  <desc id="desc">High-fidelity mockup of failed payment recovery and dunning operations.</desc>
+  <rect width="1440" height="980" fill="#F8FAF9"/>
+  <text x="72" y="92" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="850">Recovery Queue</text>
+  <text x="72" y="126" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="18">Recover failed renewals with retry timelines, payment links, and customer self-service.</text>
+  <rect x="72" y="168" width="816" height="720" rx="22" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <rect x="104" y="204" width="752" height="56" rx="14" fill="#F8FAF9" stroke="#D8E7E1"/>
+  <text x="128" y="240" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">Search failed invoices, customers, processor references</text>
+  <text x="104" y="306" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800">CUSTOMER</text>
+  <text x="328" y="306" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800">AMOUNT</text>
+  <text x="462" y="306" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800">ATTEMPT</text>
+  <text x="594" y="306" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800">NEXT ACTION</text>
+  <line x1="104" y1="326" x2="856" y2="326" stroke="#D8E7E1"/>
+  <rect x="104" y="350" width="752" height="92" rx="16" fill="#ECFDF5" stroke="#0F766E"/>
+  <text x="128" y="384" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Chinedu Bello</text>
+  <text x="128" y="410" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14">chinedu@example.com</text>
+  <text x="328" y="398" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">NGN 15,000</text>
+  <text x="462" y="398" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">2 of 5</text>
+  <text x="594" y="398" fill="#0F766E" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Retry tomorrow</text>
+  <rect x="104" y="466" width="752" height="82" rx="16" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="128" y="516" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Ifeoma James</text>
+  <text x="328" y="516" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">NGN 50,000</text>
+  <text x="462" y="516" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">1 of 5</text>
+  <text x="594" y="516" fill="#B7791F" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Send SMS</text>
+  <rect x="104" y="572" width="752" height="82" rx="16" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="128" y="622" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Bola Dan</text>
+  <text x="328" y="622" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">NGN 15,000</text>
+  <text x="462" y="622" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">5 of 5</text>
+  <text x="594" y="622" fill="#B42318" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Pause access</text>
+  <rect x="920" y="168" width="448" height="720" rx="22" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="956" y="220" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="850">Selected failed invoice</text>
+  <rect x="956" y="252" width="348" height="40" rx="20" fill="#FEF3C7"/>
+  <text x="980" y="278" fill="#B7791F" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="800">Past due - recoverable failure</text>
+  <text x="956" y="336" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800">CUSTOMER</text>
+  <text x="956" y="366" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800">Chinedu Bello</text>
+  <text x="956" y="420" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800">FAILURE</text>
+  <text x="956" y="450" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="18">Insufficient funds</text>
+  <text x="956" y="482" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">Nomba ref: txn_8f92</text>
+  <text x="956" y="544" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800">DUNNING TIMELINE</text>
+  <text x="956" y="576" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">Day 0 failed and notified</text>
+  <text x="956" y="610" fill="#0F766E" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Day 1 retry scheduled</text>
+  <text x="956" y="644" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">Day 3 retry</text>
+  <text x="956" y="678" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">Day 14 pause if unpaid</text>
+  <rect x="956" y="748" width="180" height="48" rx="12" fill="#14B8A6"/>
+  <text x="1007" y="779" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Retry now</text>
+  <rect x="1154" y="748" width="176" height="48" rx="12" fill="#0B1720"/>
+  <text x="1188" y="779" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Send portal link</text>
+</svg>
