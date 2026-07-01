@@ -22,11 +22,15 @@ import {
   Building2,
   Crown,
   Download,
+  KeyRound,
+  Link2,
   LogOut,
   Mail,
   Pause,
   Plus,
+  RefreshCw,
   Save,
+  ShieldCheck,
   Trash2,
   XOctagon
 } from "lucide-react";
@@ -37,6 +41,16 @@ import { useData } from "../data/store";
 import { usePermissions } from "../auth/AuthContext";
 import { formatRelative } from "../data/selectors";
 import { isApiError } from "../api/client";
+import {
+  activateNombaIntegration,
+  loadNombaIntegration,
+  mapNombaSubAccount,
+  saveNombaIntegration,
+  syncNombaAccounts,
+  validateNombaIntegration,
+  type NombaIntegrationConfig,
+  type NombaIntegrationMode
+} from "../api/integrations";
 import {
   closeWorkspace,
   exportWorkspaceData,
@@ -49,6 +63,7 @@ type TabKey =
   | "organization"
   | "branding"
   | "billing"
+  | "integrations"
   | "plans"
   | "dunning"
   | "notifications"
@@ -61,6 +76,7 @@ const TAB_BY_HASH: Record<string, TabKey> = {
   "#organization": "organization",
   "#branding": "branding",
   "#billing": "billing",
+  "#integrations": "integrations",
   "#plans": "plans",
   "#dunning": "dunning",
   "#notifications": "notifications",
@@ -84,6 +100,47 @@ interface CloseWorkspaceState {
   confirmText: string;
 }
 
+interface NombaDraft {
+  integrationMode: NombaIntegrationMode;
+  accountId: string;
+  clientId: string;
+  clientSecret: string;
+  webhookSecret: string;
+  subAccountId: string;
+}
+
+const emptyNombaDraft: NombaDraft = {
+  integrationMode: "platform",
+  accountId: "",
+  clientId: "",
+  clientSecret: "",
+  webhookSecret: "",
+  subAccountId: ""
+};
+
+function nombaDraftFromConfig(config: NombaIntegrationConfig): NombaDraft {
+  return {
+    integrationMode: config.integrationMode,
+    accountId: config.accountId ?? "",
+    clientId: config.clientId ?? "",
+    clientSecret: "",
+    webhookSecret: "",
+    subAccountId: config.subAccountId ?? ""
+  };
+}
+
+function formatTimestamp(iso?: string | null): string {
+  if (!iso) return "—";
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return iso;
+  return new Date(parsed).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function validationReason(config: NombaIntegrationConfig | null): string {
+  const reason = config?.lastValidation.reason;
+  return typeof reason === "string" && reason.trim() ? reason : "No validation run yet.";
+}
+
 export function SettingsPage() {
   const { org, settings, teamMembers, auditEvents, updateOrg, updateSettings, updateDunningSettings, logAuditEvent } = useData();
   const { notify, confirm } = useFeedback();
@@ -94,6 +151,7 @@ export function SettingsPage() {
   const canCloseWorkspace = can("close_workspace");
   const canExportData = can("export_workspace_data");
   const canViewAudit = can("view_audit_logs");
+  const canManageIntegrations = can("manage_payment_integrations");
   const canSeeDangerZone = canTransferOwnership || canCloseWorkspace || canExportData;
 
   const [tab, setTab] = useState<TabKey>(() => {
@@ -128,10 +186,18 @@ export function SettingsPage() {
   const [newIp, setNewIp] = useState("");
   const [transferOpen, setTransferOpen] = useState<TransferState | null>(null);
   const [closeOpen, setCloseOpen] = useState<CloseWorkspaceState | null>(null);
+  const [nombaConfig, setNombaConfig] = useState<NombaIntegrationConfig | null>(null);
+  const [nombaDraft, setNombaDraft] = useState<NombaDraft>(emptyNombaDraft);
+  const [nombaSyncPreview, setNombaSyncPreview] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState<
     | "organization"
     | "branding"
     | "payouts"
+    | "nomba"
+    | "nomba-validate"
+    | "nomba-activate"
+    | "nomba-sync"
+    | "nomba-map"
     | "plans"
     | "dunning"
     | "notifications"
@@ -154,6 +220,11 @@ export function SettingsPage() {
     setSecurityDraft(settings.security);
     setPortalDraft(settings.portal);
   }, [org, settings]);
+
+  useEffect(() => {
+    if (!canManageIntegrations) return;
+    void refreshNombaIntegration();
+  }, [canManageIntegrations]);
 
   // ---------- Organization ----------
   async function saveOrganization() {
@@ -291,6 +362,146 @@ export function SettingsPage() {
         tone: "danger",
         title: "Could not pause payouts",
         description: isApiError(err) ? err.reason : "Try again after refreshing the dashboard."
+      });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  // ---------- Payment integrations ----------
+  async function refreshNombaIntegration() {
+    try {
+      const config = await loadNombaIntegration();
+      setNombaConfig(config);
+      setNombaDraft(nombaDraftFromConfig(config));
+    } catch (err) {
+      if (isApiError(err) && err.status === 403) return;
+      notify({
+        tone: "danger",
+        title: "Could not load Nomba settings",
+        description: isApiError(err) ? err.reason : "Try again after refreshing the dashboard."
+      });
+    }
+  }
+
+  async function saveNombaSettings() {
+    if (!nombaDraft.accountId.trim()) {
+      notify({ tone: "warning", title: "Missing account ID", description: "Nomba requires an account ID header for API calls." });
+      return;
+    }
+    if (nombaDraft.integrationMode === "byok") {
+      if (!nombaDraft.clientId.trim()) {
+        notify({ tone: "warning", title: "Missing client ID", description: "Bring-your-own-key mode requires a Nomba client ID." });
+        return;
+      }
+      if (!nombaDraft.clientSecret.trim() && !nombaConfig?.hasClientSecret) {
+        notify({ tone: "warning", title: "Missing client secret", description: "Enter the Nomba client secret before validating OAuth." });
+        return;
+      }
+    }
+
+    setSaving("nomba");
+    try {
+      const config = await saveNombaIntegration(nombaDraft);
+      setNombaConfig(config);
+      setNombaDraft(nombaDraftFromConfig(config));
+      setNombaSyncPreview(null);
+      logAuditEvent({ actor: "You", action: "Updated Nomba integration", target: `Settings → ${config.mode}` });
+      notify({
+        tone: "success",
+        title: "Nomba settings saved",
+        description: "OAuth tokens were cleared. Validate credentials before processing payments."
+      });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Could not save Nomba settings",
+        description: isApiError(err) ? err.reason : "Try again after refreshing the dashboard."
+      });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function validateNombaSettings() {
+    setSaving("nomba-validate");
+    try {
+      const result = await validateNombaIntegration();
+      await refreshNombaIntegration();
+      notify({
+        tone: result.ok ? "success" : "danger",
+        title: result.ok ? "Nomba OAuth validated" : "Nomba validation failed",
+        description: result.validatedAt ? `Validated ${formatTimestamp(result.validatedAt)}.` : result.reason ?? "Check the saved credentials."
+      });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Nomba validation failed",
+        description: isApiError(err) ? err.reason : "Check the saved credentials and environment."
+      });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function activateNombaLive() {
+    const ok = await confirm({
+      title: "Activate live Nomba payments?",
+      description: "SubPilot will validate production OAuth credentials, then allow live Nomba API calls for this environment.",
+      confirmLabel: "Activate live"
+    });
+    if (!ok) return;
+    setSaving("nomba-activate");
+    try {
+      await activateNombaIntegration();
+      await refreshNombaIntegration();
+      logAuditEvent({ actor: "You", action: "Activated Nomba live mode", target: "Settings → Integrations" });
+      notify({ tone: "success", title: "Live mode active", description: "Live Nomba payments are now enabled for this environment." });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Could not activate live mode",
+        description: isApiError(err) ? err.reason : "Validate production credentials and try again."
+      });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function syncNombaAccountList() {
+    setSaving("nomba-sync");
+    try {
+      const payload = await syncNombaAccounts();
+      setNombaSyncPreview(payload);
+      logAuditEvent({ actor: "You", action: "Synced Nomba accounts", target: "Settings → Integrations" });
+      notify({ tone: "success", title: "Nomba accounts synced", description: "Use the returned account ID to map an existing sub-account." });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Could not sync Nomba accounts",
+        description: isApiError(err) ? err.reason : "Validate credentials and try again."
+      });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function applyNombaSubAccount() {
+    setSaving("nomba-map");
+    try {
+      await mapNombaSubAccount(nombaDraft.subAccountId);
+      await refreshNombaIntegration();
+      logAuditEvent({ actor: "You", action: "Mapped Nomba sub-account", target: nombaDraft.subAccountId || "Parent account" });
+      notify({
+        tone: "success",
+        title: nombaDraft.subAccountId.trim() ? "Sub-account mapped" : "Sub-account cleared",
+        description: nombaDraft.subAccountId.trim() || "Virtual accounts and collections will use the parent account."
+      });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Could not map sub-account",
+        description: isApiError(err) ? err.reason : "Confirm the account ID and try again."
       });
     } finally {
       setSaving(null);
@@ -593,6 +804,7 @@ export function SettingsPage() {
             { label: "Organization", value: "organization" },
             { label: "Branding", value: "branding" },
             { label: "Billing & payouts", value: "billing" },
+            ...(canManageIntegrations ? [{ label: "Integrations", value: "integrations" }] : []),
             { label: "Plan defaults", value: "plans" },
             ...(canManageDunning ? [{ label: "Dunning", value: "dunning" }] : []),
             { label: "Notifications", value: "notifications" },
@@ -709,6 +921,142 @@ export function SettingsPage() {
                 {settings.payouts.paused ? "Resume payouts" : "Pause payouts"}
               </Button>
             </div>
+          </div>
+        ) : null}
+
+        {/* ---------- Integrations ---------- */}
+        {tab === "integrations" && canManageIntegrations ? (
+          <div className="mer-section">
+            <CardHeader
+              title="Nomba integration"
+              description="Connect the active environment to Nomba OAuth, then map an existing sub-account for collections."
+              action={
+                <Badge tone={nombaConfig?.mode === "live" ? (nombaConfig.liveActive ? "success" : "warning") : "info"}>
+                  {nombaConfig?.mode === "live" ? (nombaConfig.liveActive ? "Live active" : "Live locked") : "Sandbox"}
+                </Badge>
+              }
+            />
+
+            <div className="mer-totals">
+              <div className="mer-totals__row">
+                <span>Environment</span>
+                <strong>{nombaConfig?.mode === "live" ? "Production" : "Sandbox"}</strong>
+              </div>
+              <div className="mer-totals__row">
+                <span>Credential source</span>
+                <strong>{nombaDraft.integrationMode === "platform" ? "Platform-managed" : "Merchant-owned keys"}</strong>
+              </div>
+              <div className="mer-totals__row">
+                <span>OAuth validation</span>
+                <span>
+                  <Badge tone={nombaConfig?.credentialsValidatedAt ? "success" : "warning"}>
+                    {nombaConfig?.credentialsValidatedAt ? "Validated" : "Not validated"}
+                  </Badge>
+                </span>
+              </div>
+              <div className="mer-totals__row">
+                <span>Last validated</span>
+                <strong>{nombaConfig?.credentialsValidatedAt ? formatTimestamp(nombaConfig.credentialsValidatedAt) : "—"}</strong>
+              </div>
+              <div className="mer-totals__row">
+                <span>Token expiry</span>
+                <strong>{formatTimestamp(nombaConfig?.tokenExpiresAt)}</strong>
+              </div>
+              <div className="mer-totals__row">
+                <span>Mapped sub-account</span>
+                <strong>{nombaConfig?.subAccountId || "Parent account"}</strong>
+              </div>
+            </div>
+
+            {!nombaConfig?.credentialsValidatedAt ? (
+              <p className="mer-hint">{validationReason(nombaConfig)}</p>
+            ) : null}
+
+            <div className="sp-grid sp-grid-2">
+              <Field label="Credential mode" hint="Platform mode uses SubPilot-managed Nomba app credentials when available.">
+                <SelectInput
+                  value={nombaDraft.integrationMode}
+                  onChange={(e) => setNombaDraft({ ...nombaDraft, integrationMode: e.target.value as NombaIntegrationMode })}
+                >
+                  <option value="platform">Platform-managed</option>
+                  <option value="byok">Bring your own Nomba keys</option>
+                </SelectInput>
+              </Field>
+              <Field label="Nomba account ID" hint="Sent as the accountId header on Nomba API calls.">
+                <TextInput
+                  value={nombaDraft.accountId}
+                  onChange={(e) => setNombaDraft({ ...nombaDraft, accountId: e.target.value })}
+                  placeholder="account_xxx"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Client ID" hint={nombaDraft.integrationMode === "platform" ? "Only required for merchant-owned credentials." : "From your Nomba app credentials."}>
+                <TextInput
+                  value={nombaDraft.clientId}
+                  onChange={(e) => setNombaDraft({ ...nombaDraft, clientId: e.target.value })}
+                  placeholder="client_xxx"
+                  disabled={nombaDraft.integrationMode === "platform"}
+                  autoComplete="off"
+                />
+              </Field>
+              <Field
+                label="Client secret"
+                hint={nombaConfig?.hasClientSecret ? "Leave blank to keep the stored encrypted secret." : "Stored encrypted at rest."}
+              >
+                <TextInput
+                  type="password"
+                  value={nombaDraft.clientSecret}
+                  onChange={(e) => setNombaDraft({ ...nombaDraft, clientSecret: e.target.value })}
+                  placeholder={nombaConfig?.hasClientSecret ? "Stored secret unchanged" : "Enter client secret"}
+                  disabled={nombaDraft.integrationMode === "platform"}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field
+                label="Webhook signing key"
+                hint={nombaConfig?.hasWebhookSecret ? "Leave blank to keep the stored encrypted key." : "Used to verify Nomba webhooks."}
+              >
+                <TextInput
+                  type="password"
+                  value={nombaDraft.webhookSecret}
+                  onChange={(e) => setNombaDraft({ ...nombaDraft, webhookSecret: e.target.value })}
+                  placeholder={nombaConfig?.hasWebhookSecret ? "Stored key unchanged" : "Enter webhook key"}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="Mapped sub-account ID" hint="Map an existing Nomba sub-account. Leave blank to use the parent account.">
+                <TextInput
+                  value={nombaDraft.subAccountId}
+                  onChange={(e) => setNombaDraft({ ...nombaDraft, subAccountId: e.target.value })}
+                  placeholder="sub_account_xxx"
+                  autoComplete="off"
+                />
+              </Field>
+            </div>
+
+            <div className="mer-row-actions">
+              <Button onClick={saveNombaSettings} icon={<Save size={14} />} disabled={saving === "nomba"}>
+                {saving === "nomba" ? "Saving..." : "Save credentials"}
+              </Button>
+              <Button variant="secondary" onClick={validateNombaSettings} icon={<ShieldCheck size={14} />} disabled={saving === "nomba-validate"}>
+                {saving === "nomba-validate" ? "Validating..." : "Validate OAuth"}
+              </Button>
+              {nombaConfig?.mode === "live" && !nombaConfig.liveActive ? (
+                <Button variant="secondary" onClick={activateNombaLive} icon={<KeyRound size={14} />} disabled={saving === "nomba-activate"}>
+                  {saving === "nomba-activate" ? "Activating..." : "Activate live"}
+                </Button>
+              ) : null}
+              <Button variant="secondary" onClick={syncNombaAccountList} icon={<RefreshCw size={14} />} disabled={saving === "nomba-sync"}>
+                {saving === "nomba-sync" ? "Syncing..." : "Sync accounts"}
+              </Button>
+              <Button variant="secondary" onClick={applyNombaSubAccount} icon={<Link2 size={14} />} disabled={saving === "nomba-map"}>
+                {saving === "nomba-map" ? "Mapping..." : "Map sub-account"}
+              </Button>
+            </div>
+
+            {nombaSyncPreview ? (
+              <pre className="mer-integration-preview">{JSON.stringify(nombaSyncPreview, null, 2)}</pre>
+            ) : null}
           </div>
         ) : null}
 

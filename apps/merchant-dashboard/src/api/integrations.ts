@@ -1,6 +1,31 @@
 import { api } from "./client";
 import type { WebhookEndpoint, WebhookEvent, WebhookEventRecord } from "../data/seed";
 
+export type NombaIntegrationMode = "platform" | "byok";
+
+export interface NombaIntegrationConfig {
+  mode: "test" | "live";
+  integrationMode: NombaIntegrationMode;
+  accountId: string;
+  clientId: string;
+  hasClientSecret: boolean;
+  hasWebhookSecret: boolean;
+  subAccountId: string;
+  credentialsValidatedAt: string | null;
+  liveActive: boolean;
+  lastValidation: Record<string, unknown>;
+  tokenExpiresAt: string | null;
+}
+
+export interface NombaCredentialInput {
+  integrationMode: NombaIntegrationMode;
+  accountId: string;
+  clientId: string;
+  clientSecret?: string;
+  webhookSecret?: string;
+  subAccountId: string;
+}
+
 interface WebhookEndpointResponse {
   endpoint: {
     id: string;
@@ -71,6 +96,37 @@ export async function rotateBackendWebhookSecret(id: string): Promise<string> {
 
 export async function replayBackendWebhookEvent(eventId: string): Promise<void> {
   await api.post(`/events/${eventId}/replay/`);
+}
+
+export async function loadNombaIntegration(): Promise<NombaIntegrationConfig> {
+  return api.get<NombaIntegrationConfig>("/nomba/");
+}
+
+export async function saveNombaIntegration(input: NombaCredentialInput): Promise<NombaIntegrationConfig> {
+  return api.post<NombaIntegrationConfig>("/nomba/", {
+    integration_mode: input.integrationMode,
+    account_id: input.accountId.trim(),
+    client_id: input.clientId.trim(),
+    client_secret: input.clientSecret?.trim() ?? "",
+    webhook_secret: input.webhookSecret?.trim() ?? "",
+    sub_account_id: input.subAccountId.trim()
+  });
+}
+
+export async function validateNombaIntegration(): Promise<{ ok: boolean; validatedAt?: string; reason?: string }> {
+  return api.post("/nomba/validate/", {});
+}
+
+export async function activateNombaIntegration(): Promise<{ ok: boolean; mode?: string; live_active?: boolean; reason?: string }> {
+  return api.post("/nomba/activate/", {});
+}
+
+export async function syncNombaAccounts(): Promise<Record<string, unknown>> {
+  return api.post("/nomba/accounts/sync/", {});
+}
+
+export async function mapNombaSubAccount(subAccountId: string): Promise<{ ok: boolean; sub_account_id: string }> {
+  return api.post("/nomba/sub-account/", { sub_account_id: subAccountId.trim() });
 }
 
 export function webhookEventId(event: WebhookEventRecord): string {

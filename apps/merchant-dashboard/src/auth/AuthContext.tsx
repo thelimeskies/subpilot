@@ -41,6 +41,7 @@ export type Capability =
   | "view_event_logs"
   | "replay_webhooks"
   | "manage_webhook_endpoints"
+  | "manage_payment_integrations"
   | "manage_api_keys"
   | "manage_team_roles"
   | "export_workspace_data"
@@ -146,7 +147,7 @@ const FALLBACK_CAPS: Record<MerchantRole, Capability[]> = {
     "retry_invoice", "apply_credit_note", "refund_payment", "void_invoice",
     "mark_uncollectible", "export_invoices", "view_payment_methods_masked",
     "create_payment_method_session", "manage_dunning_policies", "view_event_logs",
-    "replay_webhooks", "manage_webhook_endpoints", "manage_api_keys",
+    "replay_webhooks", "manage_webhook_endpoints", "manage_payment_integrations", "manage_api_keys",
     "manage_team_roles", "export_workspace_data", "force_workspace_signout",
     "transfer_workspace_ownership", "close_workspace", "view_audit_logs"
   ],
