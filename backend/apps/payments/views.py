@@ -48,6 +48,7 @@ from .serializers import (
 from .services import charge_invoice, process_processor_event
 from .services.delivery import build_payment_receipt_pdf
 from .services.ledger import record_refund_transaction
+from .services.nomba import refund_nomba_payment
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,7 @@ def _resolve_central_nomba_environment(payload: dict, parsed: dict):
     for identifier in _central_nomba_identifiers(payload):
         environment = (
             Environment.objects.select_related("merchant")
-            .filter(nomba_account_id=identifier)
+            .filter(Q(nomba_account_id=identifier) | Q(nomba_sub_account_id=identifier))
             .order_by("-mode", "created_at")
             .first()
         )
@@ -293,6 +294,20 @@ class PaymentAttemptViewSet(TenantScopedViewSet):
 
         invoice = attempt.invoice
         reason = (s.validated_data.get("reason") or "").strip()
+        provider = getattr(attempt.payment_method, "provider", "")
+        if provider == "nomba" and not (attempt.processor_reference or "").startswith("mock_"):
+            try:
+                refund_nomba_payment(
+                    payment_attempt=attempt,
+                    amount_minor=amount_minor,
+                    reason=reason,
+                )
+            except Exception as exc:
+                return Response(
+                    {"detail": f"Nomba refund failed: {str(exc)}"},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
         with transaction.atomic():
             metadata = dict(invoice.metadata or {})
             refunded_at = timezone.now()

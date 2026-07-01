@@ -112,6 +112,8 @@ def charge_invoice(
             metadata={
                 "invoice_id": str(invoice.id),
                 "customer_id": str(invoice.customer_id),
+                "_invoice": invoice,
+                "_payment_method": pm,
                 **(pm.metadata or {}),
             },
         )

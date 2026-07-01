@@ -20,6 +20,7 @@ from .base import (
     classify_failure,
 )
 from .mock import MockPaymentAdapter
+from .nomba import NombaPaymentAdapter
 from .nomba_sandbox import NombaSandboxAdapter
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,13 +36,11 @@ def get_adapter(name: str | None = None, *, environment: Environment | None = No
         byok_mode = getattr(environment, "nomba_integration_mode", "") == "byok"
         if environment is not None and byok_mode:
             try:
-                client_id = environment.nomba_client_id or ""
-                client_secret = environment.nomba_client_secret or ""
-                return NombaSandboxAdapter(client_id=client_id, client_secret=client_secret)
+                return NombaPaymentAdapter(environment=environment)
             except Exception:
                 # Fall through to settings-based defaults
                 pass
-        return NombaSandboxAdapter()
+        return NombaPaymentAdapter(environment=environment)
     raise ValueError(f"Unknown payments adapter: {resolved!r}")
 
 
@@ -52,6 +51,7 @@ __all__ = [
     "PaymentAdapter",
     "SOFT_FAILURES",
     "MockPaymentAdapter",
+    "NombaPaymentAdapter",
     "NombaSandboxAdapter",
     "classify_failure",
     "get_adapter",

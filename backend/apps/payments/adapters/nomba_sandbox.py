@@ -21,6 +21,7 @@ from typing import Any
 from django.conf import settings
 
 from .base import ChargeResult
+from .nomba import NombaPaymentAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -211,4 +212,4 @@ class NombaSandboxAdapter:
         )
 
 
-__all__ = ["NombaSandboxAdapter"]
+__all__ = ["NombaPaymentAdapter", "NombaSandboxAdapter"]
