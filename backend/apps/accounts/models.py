@@ -187,8 +187,15 @@ class Environment(BaseDomainModel):
         default=NombaIntegrationMode.PLATFORM,
     )
     nomba_account_id = models.CharField(max_length=128, blank=True, default="")
+    nomba_sub_account_id = models.CharField(max_length=128, blank=True, default="")
     nomba_client_id = models.CharField(max_length=128, blank=True, default="")
     nomba_client_secret_encrypted = models.CharField(max_length=512, blank=True, default="")
+    nomba_access_token_encrypted = models.CharField(max_length=1024, blank=True, default="")
+    nomba_refresh_token_encrypted = models.CharField(max_length=512, blank=True, default="")
+    nomba_token_expires_at = models.DateTimeField(null=True, blank=True)
+    nomba_credentials_validated_at = models.DateTimeField(null=True, blank=True)
+    nomba_live_active = models.BooleanField(default=False)
+    nomba_last_validation = models.JSONField(default=dict, blank=True)
     webhook_secret_encrypted = models.CharField(max_length=512, blank=True, default="")
     publishable_key = models.CharField(max_length=80, blank=True, default="", db_index=True)
 
@@ -205,6 +212,22 @@ class Environment(BaseDomainModel):
     @nomba_client_secret.setter
     def nomba_client_secret(self, value: str) -> None:
         self.nomba_client_secret_encrypted = encrypt(value) if value else ""
+
+    @property
+    def nomba_access_token(self) -> str:
+        return decrypt(self.nomba_access_token_encrypted)
+
+    @nomba_access_token.setter
+    def nomba_access_token(self, value: str) -> None:
+        self.nomba_access_token_encrypted = encrypt(value) if value else ""
+
+    @property
+    def nomba_refresh_token(self) -> str:
+        return decrypt(self.nomba_refresh_token_encrypted)
+
+    @nomba_refresh_token.setter
+    def nomba_refresh_token(self, value: str) -> None:
+        self.nomba_refresh_token_encrypted = encrypt(value) if value else ""
 
     @property
     def webhook_secret(self) -> str:
