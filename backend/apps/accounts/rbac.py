@@ -61,6 +61,7 @@ CAPABILITIES: dict[str, set[str]] = {
     "replay_webhooks": {Role.OWNER, Role.DEVELOPER, Role.PLATFORM_OPERATOR},
     "manage_webhook_endpoints": {Role.OWNER, Role.DEVELOPER},
     "manage_api_keys": {Role.OWNER, Role.DEVELOPER},
+    "manage_payment_integrations": {Role.OWNER, Role.DEVELOPER, Role.PLATFORM_OPERATOR},
 
     # Team / org
     "manage_team_roles": {Role.OWNER},

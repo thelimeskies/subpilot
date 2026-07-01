@@ -37,6 +37,8 @@ from .serializers import (
     CreateApiKeySerializer,
     FRONTEND_TO_ROLE,
     InviteTeamMemberSerializer,
+    NombaCredentialSerializer,
+    NombaSubAccountSerializer,
     OnboardingDraftSerializer,
     RequestResetSerializer,
     ResetPasswordSerializer,
@@ -68,6 +70,12 @@ from .services.features import feature_payload
 from .services import mfa as mfa_service
 from .services.signing_keys import rotate_signing_key, signing_key_payload
 from .tasks import send_invitation_email, send_password_reset_email, send_verification_email
+from apps.payments.services.nomba import (
+    activate_nomba_environment,
+    map_nomba_sub_account,
+    sync_nomba_accounts,
+    validate_nomba_credentials,
+)
 
 
 def _bad(reason: str, http_status: int = status.HTTP_200_OK):
@@ -1385,3 +1393,159 @@ class SigningKeysView(APIView):
             request=request,
         )
         return Response(payload)
+
+
+class NombaIntegrationView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        HasTenantContext,
+        HasCapability("manage_payment_integrations"),
+    ]
+
+    def get(self, request):
+        env = request.environment
+        return Response(self._payload(env))
+
+    def post(self, request):
+        s = NombaCredentialSerializer(data=request.data or {})
+        s.is_valid(raise_exception=True)
+        data = s.validated_data
+        env = request.environment
+        if "integration_mode" in data:
+            env.nomba_integration_mode = data["integration_mode"]
+        if "account_id" in data:
+            env.nomba_account_id = data["account_id"]
+        if "client_id" in data:
+            env.nomba_client_id = data["client_id"]
+        if data.get("client_secret"):
+            env.nomba_client_secret = data["client_secret"]
+        if data.get("webhook_secret"):
+            env.webhook_secret = data["webhook_secret"]
+        if "sub_account_id" in data:
+            env.nomba_sub_account_id = data["sub_account_id"]
+        env.nomba_access_token = ""
+        env.nomba_refresh_token = ""
+        env.nomba_token_expires_at = None
+        env.nomba_credentials_validated_at = None
+        env.nomba_last_validation = {}
+        env.save(
+            update_fields=[
+                "nomba_integration_mode",
+                "nomba_account_id",
+                "nomba_client_id",
+                "nomba_client_secret_encrypted",
+                "webhook_secret_encrypted",
+                "nomba_sub_account_id",
+                "nomba_access_token_encrypted",
+                "nomba_refresh_token_encrypted",
+                "nomba_token_expires_at",
+                "nomba_credentials_validated_at",
+                "nomba_last_validation",
+                "updated_at",
+            ]
+        )
+        log_event(
+            action="payments.nomba_credentials_updated",
+            actor_user=request.user,
+            merchant=request.merchant,
+            environment=env,
+            target_type="environment",
+            target_id=str(env.id),
+            metadata={
+                "integration_mode": env.nomba_integration_mode,
+                "mode": env.mode,
+                "has_client_id": bool(env.nomba_client_id),
+                "has_sub_account_id": bool(env.nomba_sub_account_id),
+            },
+            request=request,
+        )
+        return Response(self._payload(env))
+
+    def _payload(self, env):
+        return {
+            "mode": env.mode,
+            "integrationMode": env.nomba_integration_mode,
+            "accountId": env.nomba_account_id,
+            "clientId": env.nomba_client_id,
+            "hasClientSecret": bool(env.nomba_client_secret_encrypted),
+            "hasWebhookSecret": bool(env.webhook_secret_encrypted),
+            "subAccountId": env.nomba_sub_account_id,
+            "credentialsValidatedAt": env.nomba_credentials_validated_at,
+            "liveActive": env.nomba_live_active,
+            "lastValidation": env.nomba_last_validation or {},
+            "tokenExpiresAt": env.nomba_token_expires_at,
+        }
+
+
+class NombaValidateView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        HasTenantContext,
+        HasCapability("manage_payment_integrations"),
+    ]
+
+    def post(self, request):
+        try:
+            result = validate_nomba_credentials(
+                request.environment,
+                actor_user=request.user,
+                request=request,
+            )
+        except Exception as exc:
+            return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"ok": True, "validatedAt": result["validated_at"]})
+
+
+class NombaActivateView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        HasTenantContext,
+        HasCapability("manage_payment_integrations"),
+    ]
+
+    def post(self, request):
+        try:
+            return Response(
+                activate_nomba_environment(
+                    request.environment,
+                    mode=request.environment.mode,
+                    actor_user=request.user,
+                    request=request,
+                )
+            )
+        except Exception as exc:
+            return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class NombaAccountsSyncView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        HasTenantContext,
+        HasCapability("manage_payment_integrations"),
+    ]
+
+    def post(self, request):
+        try:
+            return Response(sync_nomba_accounts(request.environment, actor_user=request.user, request=request))
+        except Exception as exc:
+            return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class NombaSubAccountMapView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        HasTenantContext,
+        HasCapability("manage_payment_integrations"),
+    ]
+
+    def post(self, request):
+        s = NombaSubAccountSerializer(data=request.data or {})
+        s.is_valid(raise_exception=True)
+        return Response(
+            map_nomba_sub_account(
+                request.environment,
+                sub_account_id=s.validated_data["sub_account_id"],
+                actor_user=request.user,
+                request=request,
+            )
+        )

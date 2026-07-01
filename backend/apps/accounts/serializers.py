@@ -306,6 +306,19 @@ class RotateSigningKeySerializer(serializers.Serializer):
     grace_hours = serializers.IntegerField(min_value=0, max_value=168)
 
 
+class NombaCredentialSerializer(serializers.Serializer):
+    integration_mode = serializers.ChoiceField(choices=("platform", "byok"), required=False)
+    account_id = serializers.CharField(max_length=128, required=False, allow_blank=True)
+    client_id = serializers.CharField(max_length=128, required=False, allow_blank=True)
+    client_secret = serializers.CharField(max_length=256, required=False, allow_blank=True, trim_whitespace=False)
+    webhook_secret = serializers.CharField(max_length=256, required=False, allow_blank=True, trim_whitespace=False)
+    sub_account_id = serializers.CharField(max_length=128, required=False, allow_blank=True)
+
+
+class NombaSubAccountSerializer(serializers.Serializer):
+    sub_account_id = serializers.CharField(max_length=128, allow_blank=True)
+
+
 # ---------------------------------------------------------------------------
 # MerchantUser shape (matches AuthContext.tsx#L13-L23 exactly)
 # ---------------------------------------------------------------------------

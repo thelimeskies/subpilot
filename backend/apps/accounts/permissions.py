@@ -40,6 +40,7 @@ ADMIN_SCOPE_CAPABILITIES = {
     "replay_webhooks",
     "manage_webhook_endpoints",
     "manage_api_keys",
+    "manage_payment_integrations",
 }
 
 
