@@ -147,7 +147,7 @@ export function SignInPage() {
 
         <div className="mer-auth__demo">
           <span className="mer-auth__demo-label">Demo access</span>
-          <p>{demoPassword ? <>Use the configured demo password for every demo seat.</> : "Set VITE_DEMO_PASSWORD locally to prefill demo access."}</p>
+          <p>Select a demo seat to preview the merchant workspace.</p>
           <div className="mer-auth__demo-grid">
             {demoAccounts.map((account) => (
               <button
