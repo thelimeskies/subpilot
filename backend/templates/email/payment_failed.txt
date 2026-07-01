@@ -1,0 +1,10 @@
+Payment failed
+
+Hi {{ recipient_name }},
+
+{{ merchant_name }} could not collect {{ amount_due }} for invoice {{ invoice_number }}.
+
+{% if failure_message %}Reason: {{ failure_message }}
+{% endif %}{% if recovery_link %}Update your payment method: {{ recovery_link }}
+{% endif %}{% if next_retry_at %}Next retry: {{ next_retry_at }}
+{% endif %}

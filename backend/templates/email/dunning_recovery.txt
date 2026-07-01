@@ -1,0 +1,12 @@
+Keep your {{ merchant_name }} subscription active
+
+Hi {{ recipient_name }},
+
+Payment for invoice {{ invoice_number }} did not go through.
+
+Resolve payment: {{ recovery_link }}
+
+Invoice: {{ invoice_number }}
+Amount due: {{ amount_due }}
+{% if next_retry_at %}Next retry: {{ next_retry_at }}
+{% endif %}This secure link expires at {{ expires_at }}.

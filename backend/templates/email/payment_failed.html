@@ -1,0 +1,18 @@
+{% extends "email/base.html" %}
+{% block title %}Payment failed{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px 0;"><span style="display:inline-block; padding:4px 10px; border-radius:999px; background:#FEF2F2; color:#B42318; font-size:11px; font-weight:700; letter-spacing:0.06em;">PAYMENT FAILED</span></p>
+  <h1 style="margin:0 0 12px 0; color:#0B1720; font-size:26px; line-height:34px; font-weight:800; letter-spacing:-0.01em;">We could not collect {{ amount_due }}</h1>
+  <p style="margin:0 0 24px 0; color:#52615D; font-size:16px; line-height:26px;">Hi {{ recipient_name }}, {{ merchant_name }} could not process payment for invoice {{ invoice_number }} on SubPilot.</p>
+  {% if failure_message %}
+    <div style="margin:0 0 24px 0; padding:14px 16px; border-radius:10px; background:#FEF2F2; color:#B42318; font-size:14px; line-height:22px;">{{ failure_message }}</div>
+  {% endif %}
+  {% if recovery_link %}
+    <p style="margin:0 0 16px 0;">
+      <a href="{{ recovery_link }}" style="display:inline-block; background:#14B8A6; color:#FFFFFF; text-decoration:none; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:700;">Update payment method</a>
+    </p>
+  {% endif %}
+  {% if next_retry_at %}
+    <p style="margin:0; color:#9CA3AF; font-size:13px; line-height:20px;">We will retry automatically at {{ next_retry_at }}.</p>
+  {% endif %}
+{% endblock %}

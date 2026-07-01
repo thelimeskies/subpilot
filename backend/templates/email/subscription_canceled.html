@@ -1,0 +1,12 @@
+{% extends "email/base.html" %}
+{% block title %}Subscription canceled{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px 0;"><span style="display:inline-block; padding:4px 10px; border-radius:999px; background:#F3F4F6; color:#52615D; font-size:11px; font-weight:700; letter-spacing:0.06em;">CANCELED</span></p>
+  <h1 style="margin:0 0 12px 0; color:#0B1720; font-size:26px; line-height:34px; font-weight:800; letter-spacing:-0.01em;">Your {{ plan_name }} subscription has been canceled</h1>
+  <p style="margin:0 0 24px 0; color:#52615D; font-size:16px; line-height:26px;">Hi {{ recipient_name }}, {{ merchant_name }} has canceled this subscription on SubPilot{% if canceled_at %} on {{ canceled_at }}{% endif %}.</p>
+  {% if portal_link %}
+    <p style="margin:0;">
+      <a href="{{ portal_link }}" style="display:inline-block; background:#14B8A6; color:#FFFFFF; text-decoration:none; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:700;">View billing portal</a>
+    </p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "email/base.html" %}
+{% block title %}Billing paused{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px 0;"><span style="display:inline-block; padding:4px 10px; border-radius:999px; background:#FEF2F2; color:#B42318; font-size:11px; font-weight:700; letter-spacing:0.06em;">BILLING PAUSED</span></p>
+  <h1 style="margin:0 0 12px 0; color:#0B1720; font-size:26px; line-height:34px; font-weight:800; letter-spacing:-0.01em;">Your {{ merchant_name }} billing profile has been paused</h1>
+  <p style="margin:0 0 24px 0; color:#52615D; font-size:16px; line-height:26px;">Hi {{ recipient_name }}, {{ paused_subscription_count }} active subscription{{ subscription_plural }} will not create new recurring charges on SubPilot while this block is in place.</p>
+  <div style="margin:0; padding:14px 16px; border-radius:10px; background:#FEF2F2; color:#B42318; font-size:14px; line-height:22px;">
+    Contact {{ merchant_name }} support if this was unexpected or you need access restored.
+  </div>
+{% endblock %}

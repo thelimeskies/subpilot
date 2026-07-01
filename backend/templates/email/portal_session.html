@@ -1,0 +1,11 @@
+{% extends "email/base.html" %}
+{% block title %}Manage your billing{% endblock %}
+{% block content %}
+  <h1 style="margin:0 0 12px 0; color:#0B1720; font-size:26px; line-height:34px; font-weight:800; letter-spacing:-0.01em;">Manage your {{ merchant_name }} billing</h1>
+  <p style="margin:0 0 28px 0; color:#52615D; font-size:16px; line-height:26px;">Hi {{ recipient_name }}, use this secure link to view subscriptions, invoices, and payment methods on SubPilot.</p>
+  <p style="margin:0 0 24px 0;">
+    <a href="{{ portal_link }}" style="display:inline-block; background:#14B8A6; color:#FFFFFF; text-decoration:none; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:700;">Open billing portal</a>
+  </p>
+  <p style="margin:0; color:#9CA3AF; font-size:13px; line-height:20px;">This link expires at {{ expires_at }}. If the button doesn&rsquo;t work, paste this URL:</p>
+  <p style="margin:6px 0 0 0; word-break:break-all; color:#0F766E; font-size:13px; line-height:20px;">{{ portal_link }}</p>
+{% endblock %}

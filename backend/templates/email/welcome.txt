@@ -1,0 +1,7 @@
+Welcome to SubPilot, {{ org_name }}.
+
+Your workspace is ready.
+
+Start by creating products and plans, connecting your payment flow, and choosing how SubPilot should recover failed invoices.
+
+{{ dashboard_link }}

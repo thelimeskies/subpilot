@@ -1,0 +1,12 @@
+Invoice {{ invoice_number }} is awaiting payment
+
+Hi {{ recipient_name }},
+
+{{ merchant_name }} sent a reminder for {{ amount_due }}.
+
+{{ message }}
+
+{% if hosted_payment_url %}Pay invoice: {{ hosted_payment_url }}
+{% endif %}Invoice: {{ invoice_number }}
+Due: {{ due_at|default:"-" }}
+Amount due: {{ amount_due }}

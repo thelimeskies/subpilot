@@ -1,0 +1,8 @@
+Payment received
+
+Hi {{ recipient_name }},
+
+{{ merchant_name }} received your {{ amount_paid }} payment for invoice {{ invoice_number }}.
+
+Payment method: {{ payment_method_label }}
+Reference: {{ processor_reference|default:"-" }}

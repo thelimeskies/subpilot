@@ -1,0 +1,5 @@
+You've been invited to {{ org_name }} on SubPilot.
+
+Accept your invite to help manage plans, subscriptions, payment recovery, and webhooks:
+
+{{ invite_link }}

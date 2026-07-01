@@ -1,0 +1,7 @@
+Verify your SubPilot email
+
+Confirm your email to finish creating your workspace and secure dashboard access:
+
+{{ verify_link }}
+
+If you didn't create a SubPilot account, you can ignore this message.

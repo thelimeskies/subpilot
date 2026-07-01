@@ -1,0 +1,7 @@
+Your {{ merchant_name }} billing profile has been paused
+
+Hi {{ recipient_name }},
+
+{{ paused_subscription_count }} active subscription{{ subscription_plural }} will not create new recurring charges while this block is in place.
+
+Contact {{ merchant_name }} support if this was unexpected or you need access restored.

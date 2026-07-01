@@ -1,0 +1,9 @@
+Manage your {{ merchant_name }} billing
+
+Hi {{ recipient_name }},
+
+Use this secure link to view subscriptions, invoices, receipts, and payment methods:
+
+{{ portal_link }}
+
+This link expires at {{ expires_at }}.
