@@ -1,27 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Field, SelectInput, TextInput } from "@subpilot/ui";
-import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
 import type { OnboardingDraft } from "../useOnboardingDraft";
 import { useFeedback } from "../../feedback/ActionFeedback";
 import { isApiError } from "../../api/client";
-import { resolvePayoutAccount } from "../../api/onboarding";
-
-const NIGERIAN_BANKS = [
-  "Access Bank",
-  "Ecobank Nigeria",
-  "Fidelity Bank",
-  "First Bank of Nigeria",
-  "GTBank",
-  "Kuda Microfinance Bank",
-  "Polaris Bank",
-  "Providus Bank",
-  "Stanbic IBTC",
-  "Sterling Bank",
-  "UBA",
-  "Union Bank",
-  "Wema Bank",
-  "Zenith Bank"
-];
+import { loadNombaBanks, resolvePayoutAccount, type NombaBank } from "../../api/onboarding";
 
 interface Props {
   draft: OnboardingDraft;
@@ -30,7 +13,32 @@ interface Props {
 
 export function PayoutBankStep({ draft, updateSection }: Props) {
   const { notify } = useFeedback();
+  const [banks, setBanks] = useState<NombaBank[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+  const [banksError, setBanksError] = useState("");
   const [resolving, setResolving] = useState(false);
+
+  async function loadBanks() {
+    setLoadingBanks(true);
+    setBanksError("");
+    try {
+      setBanks(await loadNombaBanks());
+    } catch (err) {
+      const reason = isApiError(err) ? err.reason : "Nomba banks could not be loaded.";
+      setBanksError(reason);
+      notify({
+        tone: "danger",
+        title: "Could not load Nomba banks",
+        description: reason
+      });
+    } finally {
+      setLoadingBanks(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadBanks();
+  }, []);
 
   async function resolveAccount() {
     if (draft.payout.accountNumber.trim().length < 10 || !draft.payout.bank) {
@@ -79,19 +87,37 @@ export function PayoutBankStep({ draft, updateSection }: Props) {
       </header>
 
       <div className="mer-step__grid">
-        <Field label="Bank">
+        <Field
+          label="Bank"
+          hint={banksError ? "Bank list could not be loaded from Nomba. Retry before resolving payouts." : undefined}
+          error={banksError || undefined}
+        >
           <SelectInput
             value={draft.payout.bank}
+            disabled={loadingBanks || banks.length === 0}
             onChange={(e) => updateSection("payout", { bank: e.target.value, accountName: "", resolved: false })}
           >
-            <option value="">Select your bank…</option>
-            {NIGERIAN_BANKS.map((b) => (
-              <option key={b} value={b}>
-                {b}
+            <option value="">{loadingBanks ? "Loading banks from Nomba…" : "Select your bank…"}</option>
+            {banks.map((bank) => (
+              <option key={bank.code} value={bank.name}>
+                {bank.name}
               </option>
             ))}
           </SelectInput>
         </Field>
+        {banksError ? (
+          <div className="mer-bank-resolve">
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<RefreshCw size={16} />}
+              onClick={loadBanks}
+              disabled={loadingBanks}
+            >
+              {loadingBanks ? "Loading banks…" : "Retry Nomba banks"}
+            </Button>
+          </div>
+        ) : null}
 
         <Field label="Account number">
           <TextInput

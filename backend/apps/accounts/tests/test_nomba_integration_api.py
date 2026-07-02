@@ -72,6 +72,37 @@ def test_nomba_sub_account_mapping_endpoint_updates_environment():
     assert env.nomba_sub_account_id == "sub_456"
 
 
+def test_nomba_banks_endpoint_returns_banks(monkeypatch):
+    client, merchant = _owner("nomba-banks-co")
+    seen = {}
+
+    def fake_list(environment):
+        seen["environment_id"] = environment.id
+        return {
+            "ok": True,
+            "banks": [
+                {"name": "Access Bank", "code": "044"},
+                {"name": "Zenith Bank", "code": "057"},
+            ],
+            "raw": {},
+        }
+
+    monkeypatch.setattr("apps.accounts.views.list_nomba_banks", fake_list)
+
+    response = client.get("/api/v1/nomba/banks/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "banks": [
+            {"name": "Access Bank", "code": "044"},
+            {"name": "Zenith Bank", "code": "057"},
+        ],
+    }
+    env = Environment.objects.get(merchant=merchant, mode=Environment.Mode.TEST)
+    assert seen["environment_id"] == env.id
+
+
 def test_nomba_bank_account_lookup_endpoint_uses_environment(monkeypatch):
     client, merchant = _owner("nomba-lookup-co")
     seen = {}

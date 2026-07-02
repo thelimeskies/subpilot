@@ -225,6 +225,21 @@ def _resolve_bank_code(client: NombaClient, bank: str) -> tuple[str, str]:
     raise ServiceError(f"Nomba does not list '{bank}' as a supported bank.")
 
 
+def list_nomba_banks(environment) -> dict[str, Any]:
+    client = get_nomba_client(environment)
+    response = client.fetch_banks()
+    banks = []
+    for row in _extract_bank_rows(response):
+        label = _bank_label(row)
+        code = _bank_code(row)
+        if label and code:
+            banks.append({"name": label, "code": code})
+    if not banks:
+        raise ServiceError("Nomba did not return any supported banks.")
+    banks.sort(key=lambda item: item["name"].lower())
+    return {"ok": True, "banks": banks, "raw": response}
+
+
 def _extract_account_name(payload: Any) -> str:
     if isinstance(payload, dict):
         for key in ("accountName", "account_name", "name", "account_name_enquiry"):

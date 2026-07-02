@@ -45,6 +45,16 @@ export interface ResolvePayoutAccountResponse {
   raw: unknown;
 }
 
+export interface NombaBank {
+  name: string;
+  code: string;
+}
+
+export async function loadNombaBanks(): Promise<NombaBank[]> {
+  const body = await api.get<{ ok: true; banks: NombaBank[] }>("/nomba/banks/");
+  return body.banks;
+}
+
 export async function resolvePayoutAccount(input: {
   bank: string;
   accountNumber: string;

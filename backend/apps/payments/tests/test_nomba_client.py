@@ -18,6 +18,7 @@ from apps.payments.integrations.nomba.client import (
 )
 from apps.payments.services.nomba import (
     create_nomba_virtual_account,
+    list_nomba_banks,
     nomba_routing_account_id_for_environment,
     nomba_sub_account_id_for_environment,
 )
@@ -80,6 +81,8 @@ def test_issue_token_uses_account_header_and_persists_tokens(monkeypatch):
     env.refresh_from_db()
     assert seen["url"] == "https://sandbox.nomba.com/v1/auth/token/issue"
     assert seen["headers"]["Accountid"] == "acct_123"
+    assert seen["headers"]["User-agent"].startswith("SubPilot/0.1")
+    assert seen["headers"]["X-requested-with"] == "SubPilotBackend"
     assert seen["body"]["grant_type"] == "client_credentials"
     assert env.nomba_access_token == "access-token"
     assert env.nomba_refresh_token == "refresh-token"
@@ -241,6 +244,31 @@ def test_client_sub_account_wrappers_use_platform_fallback(monkeypatch):
         ("POST", "https://sandbox.nomba.com/v2/transfers/bank/platform-sub-account"),
         ("POST", "https://sandbox.nomba.com/v1/bill/topup/platform-sub-account"),
         ("GET", "https://sandbox.nomba.com/v1/transactions/accounts/platform-sub-account"),
+    ]
+
+
+def test_list_nomba_banks_normalizes_bank_rows(monkeypatch):
+    env = _environment()
+    env.nomba_access_token = "access-token"
+    env.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    env.save(update_fields=["nomba_access_token_encrypted", "nomba_token_expires_at", "updated_at"])
+
+    def fake_urlopen(req, timeout):
+        assert req.full_url == "https://sandbox.nomba.com/v1/transfers/banks"
+        return _Response(
+            {
+                "data": [
+                    {"bankName": "Zenith Bank", "bankCode": "057"},
+                    {"name": "Access Bank", "code": "044"},
+                ]
+            }
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    assert list_nomba_banks(env)["banks"] == [
+        {"name": "Access Bank", "code": "044"},
+        {"name": "Zenith Bank", "code": "057"},
     ]
 
 

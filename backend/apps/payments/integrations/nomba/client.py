@@ -76,6 +76,7 @@ class NombaClient:
     """Small generated-style wrapper around Nomba's official OpenAPI paths."""
 
     REFRESH_WINDOW = timedelta(minutes=5)
+    USER_AGENT = "SubPilot/0.1 (+https://subpilot.kylodo.com; nomba-api-client)"
 
     def __init__(self, *, environment, credentials: NombaCredentials, timeout_seconds: float = 20.0) -> None:
         self.environment = environment
@@ -193,6 +194,8 @@ class NombaClient:
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
+            "User-Agent": getattr(settings, "NOMBA_HTTP_USER_AGENT", self.USER_AGENT),
+            "X-Requested-With": "SubPilotBackend",
             "accountId": self.credentials.account_id,
         }
         if authorized:
@@ -229,7 +232,7 @@ class NombaClient:
     @staticmethod
     def _error_message(payload: Any, fallback: str) -> str:
         if isinstance(payload, dict):
-            for key in ("description", "message", "error", "detail"):
+            for key in ("reason", "description", "message", "error", "detail", "raw"):
                 if payload.get(key):
                     return str(payload[key])
         return fallback

@@ -73,6 +73,7 @@ from .services.signing_keys import rotate_signing_key, signing_key_payload
 from .tasks import send_invitation_email, send_password_reset_email, send_verification_email
 from apps.payments.services.nomba import (
     activate_nomba_environment,
+    list_nomba_banks,
     lookup_nomba_bank_account,
     map_nomba_sub_account,
     nomba_sub_account_id_for_environment,
@@ -1592,3 +1593,14 @@ class NombaBankAccountLookupView(APIView):
                 "raw": result["raw"],
             }
         )
+
+
+class NombaBanksView(APIView):
+    permission_classes = [IsAuthenticated, HasTenantContext]
+
+    def get(self, request):
+        try:
+            result = list_nomba_banks(request.environment)
+        except Exception as exc:
+            return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"ok": True, "banks": result["banks"]})
