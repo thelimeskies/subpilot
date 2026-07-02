@@ -73,16 +73,27 @@ services:
       db:
         condition: service_healthy
 
+  collectstatic:
+    build: .
+    command: python manage.py collectstatic --noinput
+    environment: *backend-environment
+    volumes:
+      - .:/app
+      - subpilot_staticfiles:/app/staticfiles
+
   web:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
     environment: *backend-environment
     volumes:
       - .:/app
+      - subpilot_staticfiles:/app/staticfiles
     ports:
       - "8000:8000"
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      collectstatic:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -115,6 +126,7 @@ services:
 
 volumes:
   subpilot_db_data:
+  subpilot_staticfiles:
 
 networks:
   default:
