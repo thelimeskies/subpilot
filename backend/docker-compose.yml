@@ -1,10 +1,49 @@
+x-backend-environment: &backend-environment
+  DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.local}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+  DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,web}
+  DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-0}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175}
+  FRONTEND_MERCHANT_URL: ${FRONTEND_MERCHANT_URL:-http://localhost:5173}
+  FRONTEND_CUSTOMER_URL: ${FRONTEND_CUSTOMER_URL:-http://localhost:5174}
+  FRONTEND_PLATFORM_URL: ${FRONTEND_PLATFORM_URL:-http://localhost:5175}
+  POSTGRES_DB: ${POSTGRES_DB:-subpilot}
+  POSTGRES_USER: ${POSTGRES_USER:-subpilot}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+  POSTGRES_HOST: ${POSTGRES_HOST:-db}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+  DJANGO_EMAIL_BACKEND: ${DJANGO_EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+  EMAIL_HOST: ${EMAIL_HOST:-mailhog}
+  EMAIL_PORT: ${EMAIL_PORT:-1025}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-0}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-SubPilot <no-reply@subpilot.test>}
+  FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required}
+  NOMBA_SANDBOX_BASE_URL: ${NOMBA_SANDBOX_BASE_URL:-https://sandbox.nomba.com}
+  NOMBA_LIVE_BASE_URL: ${NOMBA_LIVE_BASE_URL:-https://api.nomba.com}
+  NOMBA_PLATFORM_TEST_ACCOUNT_ID: ${NOMBA_PLATFORM_TEST_ACCOUNT_ID:-}
+  NOMBA_PLATFORM_TEST_CLIENT_ID: ${NOMBA_PLATFORM_TEST_CLIENT_ID:-}
+  NOMBA_PLATFORM_TEST_CLIENT_SECRET: ${NOMBA_PLATFORM_TEST_CLIENT_SECRET:-}
+  NOMBA_PLATFORM_LIVE_ACCOUNT_ID: ${NOMBA_PLATFORM_LIVE_ACCOUNT_ID:-}
+  NOMBA_PLATFORM_LIVE_CLIENT_ID: ${NOMBA_PLATFORM_LIVE_CLIENT_ID:-}
+  NOMBA_PLATFORM_LIVE_CLIENT_SECRET: ${NOMBA_PLATFORM_LIVE_CLIENT_SECRET:-}
+  NOMBA_WEBHOOK_SECRET: ${NOMBA_WEBHOOK_SECRET:-}
+  PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-admin@example.test}
+  PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
+  DEMO_MFA_BYPASS_CODE: ${DEMO_MFA_BYPASS_CODE:-}
+
 services:
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-subpilot}
       POSTGRES_USER: ${POSTGRES_USER:-subpilot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-subpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - subpilot_db_data:/var/lib/postgresql/data
     ports:
@@ -34,8 +73,7 @@ services:
   migrate:
     build: .
     command: python manage.py migrate --noinput
-    env_file:
-      - .env
+    environment: *backend-environment
     volumes:
       - .:/app
     depends_on:
@@ -45,8 +83,7 @@ services:
   web:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
-    env_file:
-      - .env
+    environment: *backend-environment
     volumes:
       - .:/app
     ports:
@@ -62,8 +99,7 @@ services:
   worker:
     build: .
     command: celery -A config worker -Q billing,payments,dunning,webhooks,notifications,analytics -l info
-    env_file:
-      - .env
+    environment: *backend-environment
     volumes:
       - .:/app
     depends_on:
@@ -75,8 +111,7 @@ services:
   beat:
     build: .
     command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-    env_file:
-      - .env
+    environment: *backend-environment
     volumes:
       - .:/app
     depends_on:
