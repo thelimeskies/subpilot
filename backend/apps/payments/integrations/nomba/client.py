@@ -83,6 +83,17 @@ class NombaClient:
         self.base_url = credentials.base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
+    def _sub_account_id(self, explicit: str = "") -> str:
+        if explicit:
+            return explicit
+        if self.environment.nomba_sub_account_id:
+            return self.environment.nomba_sub_account_id
+        if self.environment.nomba_integration_mode == "byok":
+            return ""
+        if self.environment.mode == "live":
+            return getattr(settings, "NOMBA_PLATFORM_LIVE_SUB_ACCOUNT_ID", "") or ""
+        return getattr(settings, "NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID", "") or ""
+
     # ------------------------------------------------------------------ auth
     def issue_token(self) -> dict[str, Any]:
         payload = self._request_json(
@@ -303,6 +314,7 @@ class NombaClient:
 
     # Virtual Accounts
     def create_virtual_account(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/accounts/virtual/{sub_account_id}" if sub_account_id else "/v1/accounts/virtual"
         return self.request("POST", path, body=payload)
 
@@ -384,19 +396,23 @@ class NombaClient:
         return self.request("POST", "/v1/transfers/bank/lookup", body=payload)
 
     def bank_transfer(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v2/transfers/bank/{sub_account_id}" if sub_account_id else "/v2/transfers/bank"
         return self.request("POST", path, body=payload)
 
     def wallet_transfer(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v2/transfers/wallet/{sub_account_id}" if sub_account_id else "/v2/transfers/wallet"
         return self.request("POST", path, body=payload)
 
     # Terminals
     def assign_terminal(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/terminals/assign/{sub_account_id}" if sub_account_id else "/v1/terminals/assign"
         return self.request("POST", path, body=payload)
 
     def unassign_terminal(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/terminals/unassign/{sub_account_id}" if sub_account_id else "/v1/terminals/unassign"
         return self.request("POST", path, body=payload)
 
@@ -405,18 +421,22 @@ class NombaClient:
 
     # Transactions
     def fetch_credit_debit_transactions(self, *, sub_account_id: str = "", **query: Any) -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/transactions/bank/{sub_account_id}" if sub_account_id else "/v1/transactions/bank"
         return self.request("GET", path, query=query)
 
     def fetch_account_transactions(self, *, sub_account_id: str = "", **query: Any) -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/transactions/accounts/{sub_account_id}" if sub_account_id else "/v1/transactions/accounts"
         return self.request("GET", path, query=query)
 
     def filter_account_transactions(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/transactions/accounts/{sub_account_id}" if sub_account_id else "/v1/transactions/accounts"
         return self.request("POST", path, body=payload)
 
     def fetch_single_transaction(self, *, sub_account_id: str = "", **query: Any) -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/transactions/accounts/{sub_account_id}/single" if sub_account_id else "/v1/transactions/accounts/single"
         return self.request("GET", path, query=query)
 
@@ -428,10 +448,12 @@ class NombaClient:
         return self.request("GET", f"/v1/bill/data-plan/{telco}")
 
     def vend_airtime(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/bill/topup/{sub_account_id}" if sub_account_id else "/v1/bill/topup"
         return self.request("POST", path, body=payload)
 
     def vend_data(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/bill/data/{sub_account_id}" if sub_account_id else "/v1/bill/data"
         return self.request("POST", path, body=payload)
 
@@ -439,6 +461,7 @@ class NombaClient:
         return self.request("GET", "/v1/bill/cabletv/lookup", query=query)
 
     def vend_cabletv(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/bill/cabletv/{sub_account_id}" if sub_account_id else "/v1/bill/cabletv"
         return self.request("POST", path, body=payload)
 
@@ -449,6 +472,7 @@ class NombaClient:
         return self.request("GET", "/v1/bill/electricity/lookup", query=query)
 
     def vend_electricity(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/bill/electricity/{sub_account_id}" if sub_account_id else "/v1/bill/electricity"
         return self.request("POST", path, body=payload)
 
@@ -459,6 +483,7 @@ class NombaClient:
         return self.request("GET", "/v1/bill/betting/lookup", query=query)
 
     def vend_betting(self, payload: dict[str, Any], *, sub_account_id: str = "") -> dict[str, Any]:
+        sub_account_id = self._sub_account_id(sub_account_id)
         path = f"/v1/bill/betting/{sub_account_id}" if sub_account_id else "/v1/bill/betting"
         return self.request("POST", path, body=payload)
 

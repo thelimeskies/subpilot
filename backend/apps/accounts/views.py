@@ -37,6 +37,7 @@ from .serializers import (
     CreateApiKeySerializer,
     FRONTEND_TO_ROLE,
     InviteTeamMemberSerializer,
+    NombaBankAccountLookupSerializer,
     NombaCredentialSerializer,
     NombaSubAccountSerializer,
     OnboardingDraftSerializer,
@@ -72,10 +73,20 @@ from .services.signing_keys import rotate_signing_key, signing_key_payload
 from .tasks import send_invitation_email, send_password_reset_email, send_verification_email
 from apps.payments.services.nomba import (
     activate_nomba_environment,
+    lookup_nomba_bank_account,
     map_nomba_sub_account,
+    nomba_sub_account_id_for_environment,
     sync_nomba_accounts,
     validate_nomba_credentials,
 )
+from apps.platform_admin.services.kyc_metadata import sync_merchant_kyc_review_from_metadata
+
+
+def customer_portal_url(slug: str, path: str = "") -> str:
+    base_url = settings.SUBPILOT_FRONTEND_URLS.get("customer", "https://portal.subpilot.kylodo.com").rstrip("/")
+    cleaned_slug = slug.strip().strip("/") or "portal"
+    cleaned_path = path.strip().lstrip("/")
+    return f"{base_url}/{cleaned_slug}{f'/{cleaned_path}' if cleaned_path else ''}"
 
 
 def _bad(reason: str, http_status: int = status.HTTP_200_OK):
@@ -390,16 +401,18 @@ class CompleteOnboardingView(APIView):
         }
         settings_doc["portal"] = {
             **settings_doc.get("portal", {}),
-            "success_url": f"https://{branding['subdomain']}.subpilot.dev/success",
-            "cancel_url": f"https://{branding['subdomain']}.subpilot.dev/cancel",
+            "success_url": customer_portal_url(branding["subdomain"], "success"),
+            "cancel_url": customer_portal_url(branding["subdomain"], "cancel"),
         }
         metadata["settings"] = settings_doc
         metadata["kyc"] = {
             "status": "pending_review",
             "rc_number": kyc["rcNumber"],
             "director_id_name": kyc["directorIdName"],
+            "director_id_data": kyc.get("directorIdData") or "",
             "director_id_uploaded": bool(kyc.get("directorIdData")),
             "address_proof_name": kyc["addressProofName"],
+            "address_proof_data": kyc.get("addressProofData") or "",
             "address_proof_uploaded": bool(kyc.get("addressProofData")),
             "submitted_at": t.utcnow().isoformat(),
         }
@@ -420,6 +433,7 @@ class CompleteOnboardingView(APIView):
         merchant.industry = business["industry"]
         merchant.metadata = metadata
         merchant.save(update_fields=["name", "industry", "metadata", "updated_at"])
+        sync_merchant_kyc_review_from_metadata(merchant, replace_documents=True)
 
         if mfa.get("enabled"):
             if mfa.get("secret"):
@@ -1088,8 +1102,8 @@ class WorkspaceSettingsView(APIView):
                 "allow_cancel": True,
                 "allow_pause": True,
                 "allow_change_plan": True,
-                "success_url": f"https://{merchant.slug}.subpilot.dev/success",
-                "cancel_url": f"https://{merchant.slug}.subpilot.dev/cancel",
+                "success_url": customer_portal_url(merchant.slug, "success"),
+                "cancel_url": customer_portal_url(merchant.slug, "cancel"),
             },
         }
         merged = {}
@@ -1470,6 +1484,7 @@ class NombaIntegrationView(APIView):
             "hasClientSecret": bool(env.nomba_client_secret_encrypted),
             "hasWebhookSecret": bool(env.webhook_secret_encrypted),
             "subAccountId": env.nomba_sub_account_id,
+            "effectiveSubAccountId": nomba_sub_account_id_for_environment(env),
             "credentialsValidatedAt": env.nomba_credentials_validated_at,
             "liveActive": env.nomba_live_active,
             "lastValidation": env.nomba_last_validation or {},
@@ -1548,4 +1563,32 @@ class NombaSubAccountMapView(APIView):
                 actor_user=request.user,
                 request=request,
             )
+        )
+
+
+class NombaBankAccountLookupView(APIView):
+    permission_classes = [IsAuthenticated, HasTenantContext]
+
+    def post(self, request):
+        serializer = NombaBankAccountLookupSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            result = lookup_nomba_bank_account(
+                request.environment,
+                bank=data["bank"],
+                account_number=data["accountNumber"],
+                actor_user=request.user,
+                request=request,
+            )
+        except Exception as exc:
+            return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                "ok": True,
+                "accountName": result["account_name"],
+                "bankName": result["bank_name"],
+                "bankCode": result["bank_code"],
+                "raw": result["raw"],
+            }
         )

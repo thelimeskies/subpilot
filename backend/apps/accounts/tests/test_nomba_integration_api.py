@@ -70,3 +70,45 @@ def test_nomba_sub_account_mapping_endpoint_updates_environment():
     assert response.json()["sub_account_id"] == "sub_456"
     env = Environment.objects.get(merchant=merchant, mode=Environment.Mode.TEST)
     assert env.nomba_sub_account_id == "sub_456"
+
+
+def test_nomba_bank_account_lookup_endpoint_uses_environment(monkeypatch):
+    client, merchant = _owner("nomba-lookup-co")
+    seen = {}
+
+    def fake_lookup(environment, *, bank, account_number, actor_user=None, request=None):
+        seen["environment_id"] = environment.id
+        seen["bank"] = bank
+        seen["account_number"] = account_number
+        seen["actor_email"] = actor_user.email
+        return {
+            "ok": True,
+            "account_name": "Zylodo Tech Ltd",
+            "bank_name": "Access Bank",
+            "bank_code": "000014",
+            "raw": {"data": {"accountName": "Zylodo Tech Ltd"}},
+        }
+
+    monkeypatch.setattr("apps.accounts.views.lookup_nomba_bank_account", fake_lookup)
+
+    response = client.post(
+        "/api/v1/nomba/bank-account/lookup/",
+        {"bank": "Access Bank", "accountNumber": "0123456789"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "accountName": "Zylodo Tech Ltd",
+        "bankName": "Access Bank",
+        "bankCode": "000014",
+        "raw": {"data": {"accountName": "Zylodo Tech Ltd"}},
+    }
+    env = Environment.objects.get(merchant=merchant, mode=Environment.Mode.TEST)
+    assert seen == {
+        "environment_id": env.id,
+        "bank": "Access Bank",
+        "account_number": "0123456789",
+        "actor_email": "owner@nomba-lookup-co.test",
+    }

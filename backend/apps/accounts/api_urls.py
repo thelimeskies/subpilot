@@ -8,6 +8,7 @@ from .views import (
     MeFeaturesView,
     NombaAccountsSyncView,
     NombaActivateView,
+    NombaBankAccountLookupView,
     NombaIntegrationView,
     NombaSubAccountMapView,
     NombaValidateView,
@@ -41,5 +42,6 @@ urlpatterns = [
     path("nomba/activate/", NombaActivateView.as_view(), name="nomba-activate"),
     path("nomba/accounts/sync/", NombaAccountsSyncView.as_view(), name="nomba-accounts-sync"),
     path("nomba/sub-account/", NombaSubAccountMapView.as_view(), name="nomba-sub-account-map"),
+    path("nomba/bank-account/lookup/", NombaBankAccountLookupView.as_view(), name="nomba-bank-account-lookup"),
     *router.urls,
 ]

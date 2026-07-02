@@ -9,11 +9,17 @@ from django.test import override_settings
 from django.utils import timezone
 
 from apps.accounts.models import Environment, Merchant
+from apps.customers.models import Customer
 from apps.payments.integrations.nomba.client import (
     NombaAuthError,
     NombaClient,
     NombaLiveNotActiveError,
     credentials_for_environment,
+)
+from apps.payments.services.nomba import (
+    create_nomba_virtual_account,
+    nomba_routing_account_id_for_environment,
+    nomba_sub_account_id_for_environment,
 )
 
 pytestmark = pytest.mark.django_db
@@ -147,6 +153,95 @@ def test_platform_credentials_are_used_when_environment_is_not_byok():
     assert creds.account_id == "acct_123"
     assert creds.client_id == "platform-client"
     assert creds.client_secret == "platform-secret"
+
+
+@override_settings(NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account")
+def test_platform_sub_account_fallback_is_used_when_environment_has_no_mapping():
+    env = _environment(byok=False)
+
+    assert nomba_sub_account_id_for_environment(env) == "platform-sub-account"
+    assert nomba_routing_account_id_for_environment(env) == "platform-sub-account"
+
+
+@override_settings(NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account")
+def test_environment_sub_account_mapping_overrides_platform_fallback():
+    env = _environment(byok=False)
+    env.nomba_sub_account_id = "environment-sub-account"
+    env.save(update_fields=["nomba_sub_account_id", "updated_at"])
+
+    assert nomba_sub_account_id_for_environment(env) == "environment-sub-account"
+    assert nomba_routing_account_id_for_environment(env) == "environment-sub-account"
+
+
+@override_settings(NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account")
+def test_byok_environment_does_not_inherit_platform_sub_account():
+    env = _environment(byok=True)
+
+    assert nomba_sub_account_id_for_environment(env) == ""
+    assert nomba_routing_account_id_for_environment(env) == "acct_123"
+
+
+@override_settings(
+    NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account",
+    NOMBA_PLATFORM_TEST_CLIENT_ID="platform-client",
+    NOMBA_PLATFORM_TEST_CLIENT_SECRET="platform-secret",
+)
+def test_virtual_account_creation_uses_platform_sub_account_fallback(monkeypatch):
+    env = _environment(byok=False)
+    env.nomba_access_token = "access-token"
+    env.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    env.save(update_fields=["nomba_access_token_encrypted", "nomba_token_expires_at", "updated_at"])
+    customer = Customer.objects.create(
+        merchant=env.merchant,
+        environment=env,
+        email="ada@example.test",
+        name="Ada Example",
+    )
+    seen = {}
+
+    def fake_urlopen(req, timeout):
+        seen["method"] = req.get_method()
+        seen["url"] = req.full_url
+        return _Response({"code": "00", "data": {"accountRef": "subpilot"}})
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    create_nomba_virtual_account(customer=customer)
+
+    assert seen == {
+        "method": "POST",
+        "url": "https://sandbox.nomba.com/v1/accounts/virtual/platform-sub-account",
+    }
+
+
+@override_settings(
+    NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account",
+    NOMBA_PLATFORM_TEST_CLIENT_ID="platform-client",
+    NOMBA_PLATFORM_TEST_CLIENT_SECRET="platform-secret",
+)
+def test_client_sub_account_wrappers_use_platform_fallback(monkeypatch):
+    env = _environment(byok=False)
+    env.nomba_access_token = "access-token"
+    env.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    env.save(update_fields=["nomba_access_token_encrypted", "nomba_token_expires_at", "updated_at"])
+    seen = []
+
+    def fake_urlopen(req, timeout):
+        seen.append((req.get_method(), req.full_url))
+        return _Response({"code": "00"})
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+
+    client.bank_transfer({"merchantTxRef": "ref"})
+    client.vend_airtime({"amount": 100})
+    client.fetch_account_transactions()
+
+    assert seen == [
+        ("POST", "https://sandbox.nomba.com/v2/transfers/bank/platform-sub-account"),
+        ("POST", "https://sandbox.nomba.com/v1/bill/topup/platform-sub-account"),
+        ("GET", "https://sandbox.nomba.com/v1/transactions/accounts/platform-sub-account"),
+    ]
 
 
 def test_endpoint_wrappers_match_official_paths(monkeypatch):

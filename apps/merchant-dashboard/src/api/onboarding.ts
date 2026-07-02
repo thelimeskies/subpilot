@@ -36,3 +36,18 @@ export async function saveMerchantOnboardingDraft(draft: OnboardingDraft): Promi
 export async function clearMerchantOnboardingDraft(): Promise<void> {
   await api.delete("/onboarding/draft/");
 }
+
+export interface ResolvePayoutAccountResponse {
+  ok: true;
+  accountName: string;
+  bankName: string;
+  bankCode: string;
+  raw: unknown;
+}
+
+export async function resolvePayoutAccount(input: {
+  bank: string;
+  accountNumber: string;
+}): Promise<ResolvePayoutAccountResponse> {
+  return api.post<ResolvePayoutAccountResponse>("/nomba/bank-account/lookup/", input);
+}

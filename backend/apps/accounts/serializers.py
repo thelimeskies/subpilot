@@ -319,6 +319,11 @@ class NombaSubAccountSerializer(serializers.Serializer):
     sub_account_id = serializers.CharField(max_length=128, allow_blank=True)
 
 
+class NombaBankAccountLookupSerializer(serializers.Serializer):
+    bank = serializers.CharField(max_length=128)
+    accountNumber = serializers.RegexField(regex=r"^\d{10,12}$")
+
+
 # ---------------------------------------------------------------------------
 # MerchantUser shape (matches AuthContext.tsx#L13-L23 exactly)
 # ---------------------------------------------------------------------------

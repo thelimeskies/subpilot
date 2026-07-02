@@ -3,6 +3,8 @@ import { Button, Field, SelectInput, TextInput } from "@subpilot/ui";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import type { OnboardingDraft } from "../useOnboardingDraft";
 import { useFeedback } from "../../feedback/ActionFeedback";
+import { isApiError } from "../../api/client";
+import { resolvePayoutAccount } from "../../api/onboarding";
 
 const NIGERIAN_BANKS = [
   "Access Bank",
@@ -26,31 +28,45 @@ interface Props {
   updateSection: <K extends "payout">(section: K, patch: Partial<OnboardingDraft[K]>) => void;
 }
 
-const sampleNames = ["Acme Learning Hub Ltd", "Acme Holdings Ltd", "Acme Operations Ltd"];
-
 export function PayoutBankStep({ draft, updateSection }: Props) {
   const { notify } = useFeedback();
   const [resolving, setResolving] = useState(false);
 
   async function resolveAccount() {
-    if (draft.payout.accountNumber.trim().length < 6 || !draft.payout.bank) {
+    if (draft.payout.accountNumber.trim().length < 10 || !draft.payout.bank) {
       notify({
         tone: "warning",
         title: "Enter bank and account first",
-        description: "We need both fields to look up your account name."
+        description: "We need a bank and 10-digit account number to look up your account name."
       });
       return;
     }
     setResolving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setResolving(false);
-    const idx = (draft.payout.accountNumber.charCodeAt(0) || 0) % sampleNames.length;
-    updateSection("payout", { accountName: sampleNames[idx], resolved: true });
-    notify({
-      tone: "success",
-      title: "Account resolved",
-      description: "We'll route settlements to this account daily."
-    });
+    try {
+      const result = await resolvePayoutAccount({
+        bank: draft.payout.bank,
+        accountNumber: draft.payout.accountNumber
+      });
+      updateSection("payout", {
+        bank: result.bankName || draft.payout.bank,
+        accountName: result.accountName,
+        resolved: true
+      });
+      notify({
+        tone: "success",
+        title: "Account resolved",
+        description: `${result.accountName} was verified by Nomba.`
+      });
+    } catch (err) {
+      updateSection("payout", { accountName: "", resolved: false });
+      notify({
+        tone: "danger",
+        title: "Could not resolve account",
+        description: isApiError(err) ? err.reason : "Nomba could not verify this account right now."
+      });
+    } finally {
+      setResolving(false);
+    }
   }
 
   return (
@@ -66,7 +82,7 @@ export function PayoutBankStep({ draft, updateSection }: Props) {
         <Field label="Bank">
           <SelectInput
             value={draft.payout.bank}
-            onChange={(e) => updateSection("payout", { bank: e.target.value, resolved: false })}
+            onChange={(e) => updateSection("payout", { bank: e.target.value, accountName: "", resolved: false })}
           >
             <option value="">Select your bank…</option>
             {NIGERIAN_BANKS.map((b) => (
@@ -83,6 +99,7 @@ export function PayoutBankStep({ draft, updateSection }: Props) {
             onChange={(e) =>
               updateSection("payout", {
                 accountNumber: e.target.value.replace(/\D/g, "").slice(0, 12),
+                accountName: "",
                 resolved: false
               })
             }
