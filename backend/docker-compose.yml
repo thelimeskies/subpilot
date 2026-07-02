@@ -46,8 +46,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - subpilot_db_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-subpilot} -d ${POSTGRES_DB:-subpilot}"]
       interval: 5s
@@ -56,8 +54,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -66,9 +62,6 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
 
   migrate:
     build: .
