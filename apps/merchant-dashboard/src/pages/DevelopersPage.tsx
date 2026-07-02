@@ -829,10 +829,14 @@ return { portalToken: session.token };`;
         ) : null}
 
         {tab === "sdk" ? (
-          <div className="mer-section">
+          <div className="mer-section mer-sdk">
             <CardHeader title="Frontend SDK" description="Install the customer portal package in your app and initialize it with a publishable key." />
-            <div className="sp-form-grid">
-              <Field label="Mode">
+            <div className="mer-sdk__layout">
+              <aside className="mer-sdk__key-panel">
+                <span className="mer-sdk__eyebrow">Publishable key</span>
+                <h3>{publishableMode === "live" ? "Live browser key" : "Test browser key"}</h3>
+                <p>Use this key in browser code only. Portal tokens still come from your backend.</p>
+
                 <SegmentedControl
                   value={publishableMode}
                   onChange={(v) => setPublishableMode(v as "test" | "live")}
@@ -842,34 +846,45 @@ return { portalToken: session.token };`;
                     { label: "Live mode", value: "live" }
                   ]}
                 />
-              </Field>
-              <div className="mer-totals">
-                <div className="mer-totals__row">
-                  <span>{publishableMode === "live" ? "Live" : "Test"} publishable key</span>
-                  <span className="mer-key-row">
-                    <code>{loadingPublishable ? "Loading..." : activePublishableKey || "No publishable key loaded"}</code>
-                    <Button
-                      variant="ghost"
-                      icon={<Copy size={14} />}
-                      onClick={() => copyText(activePublishableKey, "Publishable key")}
-                      disabled={!activePublishableKey}
-                    >
-                      Copy
-                    </Button>
-                  </span>
+
+                <div className="mer-sdk__key-box">
+                  <code>{loadingPublishable ? "Loading..." : activePublishableKey || "No publishable key loaded"}</code>
+                  <Button
+                    variant="secondary"
+                    icon={<Copy size={14} />}
+                    onClick={() => copyText(activePublishableKey, "Publishable key")}
+                    disabled={!activePublishableKey}
+                  >
+                    Copy key
+                  </Button>
                 </div>
+              </aside>
+
+              <div className="mer-sdk__steps">
+                <SdkCodeBlock
+                  label="1. Install"
+                  description="Add the customer portal package to your frontend."
+                  value={sdkInstallSnippet}
+                  onCopy={() => copyText(sdkInstallSnippet, "Install command")}
+                />
+                <SdkCodeBlock
+                  label="2. Embed in React"
+                  description="Render the portal with the publishable key and a short-lived portal token."
+                  value={sdkReactSnippet}
+                  onCopy={() => copyText(sdkReactSnippet, "React embed")}
+                />
+                <SdkCodeBlock
+                  label="3. Create portal token"
+                  description="Create the portal token from your server with a secret API key."
+                  value={sdkServerSnippet}
+                  onCopy={() => copyText(sdkServerSnippet, "Server token snippet")}
+                />
               </div>
-              <Field label="Install">
-                <div className="mer-pre">{sdkInstallSnippet}</div>
-              </Field>
-              <Field label="React embed">
-                <div className="mer-pre">{sdkReactSnippet}</div>
-              </Field>
-              <Field label="Create portal token">
-                <div className="mer-pre">{sdkServerSnippet}</div>
-              </Field>
+            </div>
+            <div className="mer-sdk__note">
+              <ShieldCheck size={14} aria-hidden="true" />
               <p className="mer-hint">
-                <ShieldCheck size={12} aria-hidden="true" /> Use publishable keys in browser code. Create portal tokens on your server with a secret API key.
+                Publishable keys are safe for browser code. Secret API keys should stay on your server.
               </p>
             </div>
           </div>
@@ -1141,6 +1156,35 @@ return { portalToken: session.token };`;
         ) : null}
       </Modal>
     </>
+  );
+}
+
+function SdkCodeBlock({
+  label,
+  description,
+  value,
+  onCopy
+}: {
+  label: string;
+  description: string;
+  value: string;
+  onCopy: () => void;
+}) {
+  return (
+    <section className="mer-sdk-code">
+      <header className="mer-sdk-code__header">
+        <div>
+          <strong>{label}</strong>
+          <span>{description}</span>
+        </div>
+        <Button variant="ghost" icon={<Copy size={14} />} onClick={onCopy}>
+          Copy
+        </Button>
+      </header>
+      <pre className="mer-sdk-code__body">
+        <code>{value}</code>
+      </pre>
+    </section>
   );
 }
 
