@@ -26,7 +26,7 @@ services:
       retries: 10
 
   mailhog:
-    image: mailhog/mailhog:latest
+    image: axllent/mailpit:latest
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
