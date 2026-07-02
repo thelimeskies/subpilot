@@ -53,6 +53,21 @@ type TabKey = "overview" | "kyc" | "subscriptions" | "payments" | "webhooks" | "
 
 const PAGE_SIZE = 10;
 
+type KycDocument = MerchantDetailKyc["documents"][number];
+type KycDocumentPreviewKind = "image" | "pdf" | "unknown";
+
+function kycDocumentHref(document: KycDocument | null) {
+  return document?.url || document?.dataUrl || "";
+}
+
+function kycDocumentPreviewKind(document: KycDocument | null): KycDocumentPreviewKind {
+  const href = kycDocumentHref(document).toLowerCase();
+  const fileName = (document?.fileName ?? "").toLowerCase();
+  if (href.startsWith("data:image/") || /\.(gif|jpe?g|png|webp)$/.test(fileName)) return "image";
+  if (href.startsWith("data:application/pdf") || fileName.endsWith(".pdf")) return "pdf";
+  return "unknown";
+}
+
 export function MerchantDetailPage() {
   const { merchantId } = useParams<{ merchantId: string }>();
   const {
@@ -97,6 +112,7 @@ export function MerchantDetailPage() {
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [reinstateOpen, setReinstateOpen] = useState(false);
   const [kycOpen, setKycOpen] = useState(false);
+  const [documentPreview, setDocumentPreview] = useState<KycDocument | null>(null);
   const [secretOpen, setSecretOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState<PaymentRow | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -198,9 +214,11 @@ export function MerchantDetailPage() {
 
   const overviewRecentPayments = paymentsHook.rows.slice(0, 5);
   const overviewRecentDeliveries = webhooksHook.rows.slice(0, 5);
+  const documentPreviewHref = kycDocumentHref(documentPreview);
+  const documentPreviewKind = kycDocumentPreviewKind(documentPreview);
 
-  function openKycDocument(document: MerchantDetailKyc["documents"][number]) {
-    const href = document.url || document.dataUrl;
+  function openKycDocument(document: KycDocument) {
+    const href = kycDocumentHref(document);
     if (!href) {
       notify({
         tone: "info",
@@ -211,7 +229,7 @@ export function MerchantDetailPage() {
       });
       return;
     }
-    window.open(href, "_blank", "noopener,noreferrer");
+    setDocumentPreview(document);
   }
 
   return (
@@ -921,6 +939,47 @@ export function MerchantDetailPage() {
             <label><input type="checkbox" /> TIN certificate</label>
           </div>
         </Field>
+      </Modal>
+
+      <Modal
+        open={documentPreview !== null}
+        title={documentPreview ? `${documentPreview.kind} document` : "KYC document"}
+        description={
+          documentPreview
+            ? `${documentPreview.fileName ?? "Uploaded file"} · Uploaded ${documentPreview.uploadedAt}`
+            : undefined
+        }
+        onClose={() => setDocumentPreview(null)}
+        footer={<Button variant="ghost" onClick={() => setDocumentPreview(null)}>Close</Button>}
+      >
+        <div className="adm-kyc-preview">
+          {documentPreviewHref && documentPreviewKind === "image" ? (
+            <img
+              className="adm-kyc-preview__image"
+              src={documentPreviewHref}
+              alt={`${documentPreview?.kind ?? "KYC"} preview`}
+            />
+          ) : null}
+          {documentPreviewHref && documentPreviewKind === "pdf" ? (
+            <iframe
+              className="adm-kyc-preview__frame"
+              src={documentPreviewHref}
+              title={`${documentPreview?.kind ?? "KYC"} preview`}
+            />
+          ) : null}
+          {documentPreviewHref && documentPreviewKind === "unknown" ? (
+            <div className="adm-kyc-preview__fallback">
+              <FileText size={18} aria-hidden="true" />
+              <div>
+                <strong>Preview is not available for this file type.</strong>
+                <small>The document was uploaded, but the browser cannot render it inline.</small>
+              </div>
+            </div>
+          ) : null}
+          {!documentPreviewHref ? (
+            <p className="adm-empty">No preview file is stored for this document.</p>
+          ) : null}
+        </div>
       </Modal>
 
       <Modal

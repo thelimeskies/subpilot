@@ -1241,6 +1241,53 @@ a.adm-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
 .adm-doc-row small { display: block; font-size: 11px; color: var(--sp-color-muted); }
 .adm-doc-row svg { color: var(--sp-color-teal-edge); }
 
+.adm-shell .sp-modal:has(.adm-kyc-preview) {
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(780px, calc(100vh - 32px));
+}
+
+.adm-kyc-preview {
+  display: grid;
+  gap: 10px;
+  min-height: 180px;
+}
+
+.adm-kyc-preview__image,
+.adm-kyc-preview__frame {
+  width: 100%;
+  border: 1px solid var(--sp-color-border, #d8e2e1);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.adm-kyc-preview__image {
+  max-height: min(66vh, 620px);
+  object-fit: contain;
+}
+
+.adm-kyc-preview__frame {
+  height: min(66vh, 620px);
+}
+
+.adm-kyc-preview__fallback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--sp-color-border, #d8e2e1);
+  border-radius: 10px;
+  background: #f8fbfa;
+}
+
+.adm-kyc-preview__fallback strong,
+.adm-kyc-preview__fallback small {
+  display: block;
+}
+
+.adm-kyc-preview__fallback small {
+  color: var(--sp-color-muted);
+}
+
 .adm-flag-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
 .adm-flag-list li {
   display: inline-flex;
