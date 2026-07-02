@@ -7,6 +7,7 @@ management endpoints.
 from __future__ import annotations
 
 import json
+import logging
 import socket
 from dataclasses import dataclass
 from datetime import timezone as datetime_timezone
@@ -17,6 +18,9 @@ from urllib import error, parse, request
 from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+
+
+logger = logging.getLogger(__name__)
 
 
 class NombaError(Exception):
@@ -77,6 +81,8 @@ class NombaClient:
 
     REFRESH_WINDOW = timedelta(minutes=5)
     USER_AGENT = "SubPilot/0.1 (+https://subpilot.kylodo.com; nomba-api-client)"
+    REDACTED = "[redacted]"
+    LOG_VALUE_LIMIT = 4000
 
     def __init__(self, *, environment, credentials: NombaCredentials, timeout_seconds: float = 20.0) -> None:
         self.environment = environment
@@ -202,14 +208,98 @@ class NombaClient:
             headers["Authorization"] = f"Bearer {self.environment.nomba_access_token}"
         data = json.dumps(body or {}).encode("utf-8") if body is not None else None
         req = request.Request(url, data=data, headers=headers, method=method.upper())
+        self._log_request(method=method, url=url, headers=headers, body=body)
         try:
             with request.urlopen(req, timeout=self.timeout_seconds) as response:
-                return self._decode_response(response.read())
+                payload = self._decode_response(response.read())
+                status_code = getattr(response, "status", None)
+                if status_code is None and hasattr(response, "getcode"):
+                    status_code = response.getcode()
+                self._log_response(method=method, url=url, status_code=status_code or 200, payload=payload)
+                return payload
         except error.HTTPError as exc:
             payload = self._decode_response(exc.read())
+            self._log_response(method=method, url=url, status_code=exc.code, payload=payload, failed=True)
             raise self._error_for_status(exc.code, payload) from exc
         except (error.URLError, TimeoutError, socket.timeout) as exc:
+            self._log_transport_error(method=method, url=url, exc=exc)
             raise NombaTimeoutError(str(exc), status_code=0, payload={"exception": exc.__class__.__name__}) from exc
+
+    @classmethod
+    def _redact(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            redacted = {}
+            for key, child in value.items():
+                lowered = str(key).lower()
+                if any(part in lowered for part in ("authorization", "secret", "token", "password")):
+                    redacted[key] = cls.REDACTED
+                elif lowered in {"client_id", "clientid", "accountid", "account_id"}:
+                    redacted[key] = cls._mask_identifier(str(child))
+                else:
+                    redacted[key] = cls._redact(child)
+            return redacted
+        if isinstance(value, list):
+            return [cls._redact(item) for item in value[:50]]
+        return value
+
+    @staticmethod
+    def _mask_identifier(value: str) -> str:
+        if len(value) <= 8:
+            return value
+        return f"{value[:4]}...{value[-4:]}"
+
+    @classmethod
+    def _limit(cls, value: Any) -> Any:
+        rendered = json.dumps(value, default=str, ensure_ascii=True)
+        if len(rendered) <= cls.LOG_VALUE_LIMIT:
+            return value
+        return {"truncated": True, "preview": rendered[: cls.LOG_VALUE_LIMIT]}
+
+    def _log_request(self, *, method: str, url: str, headers: dict[str, str], body: dict[str, Any] | None) -> None:
+        logger.warning("nomba.request %s", self._log_json({
+            "method": method.upper(),
+            "url": url,
+            "headers": self._limit(self._redact(headers)),
+            "body": self._limit(self._redact(body or {})),
+            "environment_id": str(getattr(self.environment, "id", "")),
+            "merchant_id": str(getattr(self.environment, "merchant_id", "")),
+            "mode": self.credentials.mode,
+        }))
+
+    def _log_response(
+        self,
+        *,
+        method: str,
+        url: str,
+        status_code: int,
+        payload: dict[str, Any],
+        failed: bool = False,
+    ) -> None:
+        logger.warning("nomba.response %s", self._log_json({
+            "method": method.upper(),
+            "url": url,
+            "status_code": status_code,
+            "failed": failed,
+            "payload": self._limit(self._redact(payload)),
+            "environment_id": str(getattr(self.environment, "id", "")),
+            "merchant_id": str(getattr(self.environment, "merchant_id", "")),
+            "mode": self.credentials.mode,
+        }))
+
+    def _log_transport_error(self, *, method: str, url: str, exc: Exception) -> None:
+        logger.warning("nomba.transport_error %s", self._log_json({
+            "method": method.upper(),
+            "url": url,
+            "exception": exc.__class__.__name__,
+            "reason": str(exc),
+            "environment_id": str(getattr(self.environment, "id", "")),
+            "merchant_id": str(getattr(self.environment, "merchant_id", "")),
+            "mode": self.credentials.mode,
+        }))
+
+    @staticmethod
+    def _log_json(payload: dict[str, Any]) -> str:
+        return json.dumps(payload, default=str, ensure_ascii=True, sort_keys=True)
 
     def _url(self, path: str, query: dict[str, Any] | None = None) -> str:
         normalized = path if path.startswith("/") else f"/{path}"
