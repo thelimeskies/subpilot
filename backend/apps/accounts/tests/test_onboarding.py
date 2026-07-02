@@ -3,6 +3,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Environment, Merchant, Role, TeamMember, User
 from apps.audit.models import AuditLog
 from apps.catalog.models import Plan, PriceVersion, Product
+from apps.platform_admin.models import KycReview, KycStatus
 
 
 PASSWORD = "Subpilot1!"
@@ -107,6 +108,27 @@ def test_complete_onboarding_persists_workspace_and_imports_once():
     assert merchant.metadata["settings"]["payouts"]["account_number"] == "0123456789"
     assert merchant.metadata["settings"]["branding"]["logo_data"] == "data:image/png;base64,logo"
     assert merchant.metadata["kyc"]["status"] == "pending_review"
+    assert merchant.metadata["kyc"]["director_id_data"] == "data:application/pdf;base64,abc"
+
+    review = KycReview.objects.get(merchant=merchant)
+    assert review.status == KycStatus.IN_REVIEW
+    assert review.submitted_at is not None
+    assert review.documents == [
+        {
+            "kind": "Director ID",
+            "status": "Pending",
+            "uploadedAt": review.submitted_at.date().isoformat(),
+            "fileName": "director-id.pdf",
+            "dataUrl": "data:application/pdf;base64,abc",
+        },
+        {
+            "kind": "Utility bill",
+            "status": "Pending",
+            "uploadedAt": review.submitted_at.date().isoformat(),
+            "fileName": "utility.pdf",
+            "dataUrl": "data:application/pdf;base64,def",
+        },
+    ]
 
     env = Environment.objects.get(merchant=merchant, mode=Environment.Mode.TEST)
     assert Product.objects.filter(merchant=merchant, environment=env).count() == 1

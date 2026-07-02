@@ -312,6 +312,49 @@ def test_kyc_get_creates_row_lazily(platform_admin_owner):
     assert KycReview.objects.filter(merchant=m).exists()
 
 
+def test_kyc_get_hydrates_onboarding_documents(platform_admin_owner):
+    m = _seed_merchant()
+    m.metadata = {
+        "kyc": {
+            "status": "pending_review",
+            "rc_number": "RC-555",
+            "director_id_name": "director.png",
+            "director_id_data": "data:image/png;base64,director",
+            "director_id_uploaded": True,
+            "address_proof_name": "utility.pdf",
+            "address_proof_data": "data:application/pdf;base64,utility",
+            "address_proof_uploaded": True,
+            "submitted_at": "2026-07-02T01:37:35.230455+00:00",
+        }
+    }
+    m.save(update_fields=["metadata", "updated_at"])
+    client = APIClient()
+    _sign_in(client, platform_admin_owner.email)
+
+    resp = client.get(f"/api/v1/platform/kyc/{m.id}")
+
+    assert resp.status_code == 200, resp.content
+    docs = resp.json()["kyc"]["documents"]
+    assert docs == [
+        {
+            "kind": "Director ID",
+            "status": "Pending",
+            "uploadedAt": "2026-07-02",
+            "fileName": "director.png",
+            "dataUrl": "data:image/png;base64,director",
+        },
+        {
+            "kind": "Utility bill",
+            "status": "Pending",
+            "uploadedAt": "2026-07-02",
+            "fileName": "utility.pdf",
+            "dataUrl": "data:application/pdf;base64,utility",
+        },
+    ]
+    review = KycReview.objects.get(merchant=m)
+    assert review.status == KycStatus.IN_REVIEW
+
+
 def test_kyc_unknown_merchant_404(platform_admin_owner):
     client = APIClient()
     _sign_in(client, platform_admin_owner.email)

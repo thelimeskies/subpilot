@@ -36,7 +36,7 @@ import {
   UserPlus,
   Webhook
 } from "lucide-react";
-import { useMerchantDetail } from "../api/merchantDetail";
+import { useMerchantDetail, type MerchantDetailKyc } from "../api/merchantDetail";
 import {
   useMerchantAudit,
   useMerchantPayments,
@@ -198,6 +198,21 @@ export function MerchantDetailPage() {
 
   const overviewRecentPayments = paymentsHook.rows.slice(0, 5);
   const overviewRecentDeliveries = webhooksHook.rows.slice(0, 5);
+
+  function openKycDocument(document: MerchantDetailKyc["documents"][number]) {
+    const href = document.url || document.dataUrl;
+    if (!href) {
+      notify({
+        tone: "info",
+        title: `No preview for ${document.kind}`,
+        description: document.fileName
+          ? `${document.fileName} was recorded, but no preview file is stored.`
+          : `Document metadata exists for ${merchant.name}, but no preview file is stored.`
+      });
+      return;
+    }
+    window.open(href, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <>
@@ -391,16 +406,16 @@ export function MerchantDetailPage() {
             {kyc && kyc.documents.length ? (
               <ul className="adm-doc-list">
                 {kyc.documents.map((d) => (
-                  <li key={d.kind} className="adm-doc-row">
+                  <li key={`${d.kind}-${d.fileName ?? d.uploadedAt}`} className="adm-doc-row">
                     <FileText size={16} aria-hidden="true" />
                     <div>
                       <strong>{d.kind}</strong>
-                      <small>Uploaded {d.uploadedAt}</small>
+                      <small>{d.fileName ? `${d.fileName} · ` : ""}Uploaded {d.uploadedAt}</small>
                     </div>
                     <Badge tone={d.status === "Approved" ? "success" : d.status === "Pending" ? "warning" : "danger"}>{d.status}</Badge>
                     <Button
                       variant="ghost"
-                      onClick={() => notify({ tone: "info", title: `Opening ${d.kind}`, description: `Document preview for ${merchant.name}.` })}
+                      onClick={() => openKycDocument(d)}
                     >
                       View
                     </Button>

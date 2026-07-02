@@ -391,7 +391,14 @@ export interface KycReview {
   submittedAt: string;
   reviewedAt?: string;
   reviewer?: string;
-  documents: { kind: "BVN" | "CAC" | "Director ID" | "Bank statement" | "TIN" | "Utility bill"; status: "Approved" | "Pending" | "Rejected"; uploadedAt: string }[];
+  documents: {
+    kind: "BVN" | "CAC" | "Director ID" | "Bank statement" | "TIN" | "Utility bill";
+    status: "Approved" | "Pending" | "Rejected";
+    uploadedAt: string;
+    fileName?: string;
+    dataUrl?: string;
+    url?: string;
+  }[];
   flags: string[];
   notes: string;
 }

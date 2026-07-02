@@ -98,6 +98,33 @@ def test_detail_returns_fe_shape(platform_admin_owner, django_user_model):
     assert len(detail["environments"]) == 2
 
 
+def test_detail_hydrates_kyc_from_onboarding_metadata(platform_admin_owner, django_user_model):
+    m = _make_merchant(name="Zylodo Tech", slug="zylodo-tech")
+    m.metadata = {
+        "kyc": {
+            "director_id_name": "passport.jpg",
+            "director_id_data": "data:image/jpeg;base64,passport",
+            "address_proof_name": "utility.pdf",
+            "address_proof_data": "data:application/pdf;base64,utility",
+            "submitted_at": "2026-07-02T01:37:35.230455+00:00",
+        }
+    }
+    m.save(update_fields=["metadata", "updated_at"])
+    _attach_owner(m, email="owner@zylodo.test", name="Asikhalaye Samuel", django_user_model=django_user_model)
+    Environment.objects.create(merchant=m, mode=Environment.Mode.LIVE)
+    client = APIClient()
+    _sign_in(client, platform_admin_owner.email)
+
+    resp = client.get(f"/api/v1/platform/merchants/{m.id}")
+
+    assert resp.status_code == 200, resp.content
+    kyc = resp.json()["merchant"]["kyc"]
+    assert kyc["status"] == "In review"
+    assert kyc["submittedAt"].startswith("2026-07-02T01:37:35")
+    assert kyc["documents"][0]["fileName"] == "passport.jpg"
+    assert kyc["documents"][0]["dataUrl"] == "data:image/jpeg;base64,passport"
+
+
 def test_detail_404_for_unknown_id(platform_admin_owner):
     client = APIClient()
     _sign_in(client, platform_admin_owner.email)

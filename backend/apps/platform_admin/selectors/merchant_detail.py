@@ -25,6 +25,7 @@ from apps.subscriptions.models import Subscription, SubscriptionItem
 
 from ..models import KycReview, PlatformMerchantNote
 from ..services.formatting import format_compact_money, format_pct
+from ..services.kyc_metadata import sync_merchant_kyc_review_from_metadata
 from .merchants import (
     _derive_region,
     _derive_status,
@@ -235,6 +236,8 @@ def get_merchant_detail(merchant_id: str) -> dict[str, Any] | None:
 
     # ------------- KYC review ------------------------------------------------
     kyc_obj = KycReview.objects.filter(merchant=m).select_related("reviewer").first()
+    if kyc_obj is None:
+        kyc_obj = sync_merchant_kyc_review_from_metadata(m)
     if kyc_obj is not None:
         kyc = {
             "status": _kyc_status_label(kyc_obj.status),

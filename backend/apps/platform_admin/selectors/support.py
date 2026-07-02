@@ -35,6 +35,7 @@ from ..models import (
     SupportTicketReply,
     SupportTicketStatus,
 )
+from ..services.kyc_metadata import sync_merchant_kyc_review_from_metadata
 
 
 # --- Ticket projections ----------------------------------------------------
@@ -271,6 +272,9 @@ def get_or_create_kyc(merchant_id: str) -> KycReview | None:
         merchant = Merchant.objects.get(pk=merchant_id)
     except (Merchant.DoesNotExist, ValueError):
         return None
+    synced = sync_merchant_kyc_review_from_metadata(merchant)
+    if synced is not None:
+        return synced
     review, _ = KycReview.objects.select_related("merchant", "reviewer").get_or_create(
         merchant=merchant
     )

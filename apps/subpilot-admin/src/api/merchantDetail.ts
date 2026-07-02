@@ -44,7 +44,7 @@ export interface MerchantDetailAuditEntry {
 export interface MerchantDetailKyc {
   status: string;
   level: string;
-  documents: Array<{ kind: string; status: string; uploadedAt: string }>;
+  documents: Array<{ kind: string; status: string; uploadedAt: string; fileName?: string; dataUrl?: string; url?: string }>;
   flags: string[];
   notes: string;
   reviewer: string;
