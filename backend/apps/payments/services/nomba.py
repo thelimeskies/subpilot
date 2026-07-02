@@ -1,6 +1,7 @@
 """SubPilot service layer for Nomba-backed operations."""
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -19,11 +20,30 @@ from apps.payments.integrations.nomba.client import (
 from apps.payments.models import PaymentAttempt
 
 
+logger = logging.getLogger(__name__)
+
 BANK_ALIASES = {
     "gtbank": "guaranty trust bank",
     "gt bank": "guaranty trust bank",
     "first bank of nigeria": "first bank",
     "uba": "united bank for africa",
+}
+
+NIGERIA_BANK_CODE_FALLBACKS = {
+    "access bank": ("044", "Access Bank"),
+    "ecobank nigeria": ("050", "Ecobank Nigeria"),
+    "fidelity bank": ("070", "Fidelity Bank"),
+    "first bank": ("011", "First Bank of Nigeria"),
+    "guaranty trust bank": ("058", "GTBank"),
+    "kuda microfinance bank": ("50211", "Kuda Microfinance Bank"),
+    "polaris bank": ("076", "Polaris Bank"),
+    "providus bank": ("101", "Providus Bank"),
+    "stanbic ibtc": ("221", "Stanbic IBTC"),
+    "sterling bank": ("232", "Sterling Bank"),
+    "united bank for africa": ("033", "UBA"),
+    "union bank": ("032", "Union Bank"),
+    "wema bank": ("035", "Wema Bank"),
+    "zenith bank": ("057", "Zenith Bank"),
 }
 
 
@@ -215,13 +235,27 @@ def _resolve_bank_code(client: NombaClient, bank: str) -> tuple[str, str]:
     if bank.strip().isdigit():
         return bank.strip(), bank.strip()
     wanted = _normalize_bank_name(bank)
-    banks_payload = client.fetch_banks()
-    for row in _extract_bank_rows(banks_payload):
-        label = _bank_label(row)
-        code = _bank_code(row)
-        normalized = _normalize_bank_name(label)
-        if code and (normalized == wanted or wanted in normalized or normalized in wanted):
-            return code, label or bank
+    try:
+        banks_payload = client.fetch_banks()
+    except NombaError as exc:
+        fallback = NIGERIA_BANK_CODE_FALLBACKS.get(wanted)
+        if fallback:
+            logger.warning(
+                "payments.nomba_bank_list_failed_using_fallback",
+                extra={"bank": bank, "reason": str(exc)},
+            )
+            return fallback
+        raise
+    else:
+        for row in _extract_bank_rows(banks_payload):
+            label = _bank_label(row)
+            code = _bank_code(row)
+            normalized = _normalize_bank_name(label)
+            if code and (normalized == wanted or wanted in normalized or normalized in wanted):
+                return code, label or bank
+    fallback = NIGERIA_BANK_CODE_FALLBACKS.get(wanted)
+    if fallback:
+        return fallback
     raise ServiceError(f"Nomba does not list '{bank}' as a supported bank.")
 
 

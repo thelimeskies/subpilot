@@ -6,6 +6,7 @@ auth flows because the FE switches purely on ``ok`` and ``reason``.
 """
 from __future__ import annotations
 
+import logging
 import math
 import uuid
 
@@ -81,6 +82,9 @@ from apps.payments.services.nomba import (
     validate_nomba_credentials,
 )
 from apps.platform_admin.services.kyc_metadata import sync_merchant_kyc_review_from_metadata
+
+
+logger = logging.getLogger(__name__)
 
 
 def customer_portal_url(slug: str, path: str = "") -> str:
@@ -1583,6 +1587,15 @@ class NombaBankAccountLookupView(APIView):
                 request=request,
             )
         except Exception as exc:
+            logger.warning(
+                "accounts.nomba_bank_account_lookup_failed",
+                extra={
+                    "merchant_id": str(request.merchant.id),
+                    "environment_id": str(request.environment.id),
+                    "bank": data["bank"],
+                    "reason": str(exc),
+                },
+            )
             return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
             {
@@ -1602,5 +1615,13 @@ class NombaBanksView(APIView):
         try:
             result = list_nomba_banks(request.environment)
         except Exception as exc:
+            logger.warning(
+                "accounts.nomba_banks_fetch_failed",
+                extra={
+                    "merchant_id": str(request.merchant.id),
+                    "environment_id": str(request.environment.id),
+                    "reason": str(exc),
+                },
+            )
             return Response({"ok": False, "reason": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"ok": True, "banks": result["banks"]})
