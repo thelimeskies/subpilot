@@ -1013,6 +1013,10 @@ a.mer-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
   max-width: 360px;
   pointer-events: none;
 }
+.mer-toast-stack[data-placement="onboarding"] {
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  bottom: auto;
+}
 .mer-toast-stack > .sp-toast {
   pointer-events: auto;
   animation: mer-toast-in 180ms ease-out;
@@ -1020,6 +1024,14 @@ a.mer-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
 @keyframes mer-toast-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .mer-toast-stack {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
 }
 
 .mer-confirm-warning {
@@ -1677,12 +1689,14 @@ a.mer-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
 }
 
 .mer-brand-card__url {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
+  width: 100%;
+  overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  padding: 8px 10px;
+  font-size: 13px;
+  padding: 12px 14px;
   border-radius: 8px;
   background: var(--sp-color-surface-soft);
   border: 1px dashed var(--sp-color-line);
@@ -1915,6 +1929,7 @@ a.mer-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
 .mer-summary__copy strong {
   font-size: 14px;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .mer-summary__copy small {
@@ -2267,6 +2282,11 @@ a.mer-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  max-width: calc(100% - 64px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 4px 12px;
   border-radius: 999px;
   background: #fff;

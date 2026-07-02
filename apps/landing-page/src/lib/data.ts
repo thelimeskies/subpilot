@@ -211,7 +211,7 @@ const subscription = await client.subscriptions.create({
 });
 
 res.redirect(subscription.checkout_url);`,
-  curl: `curl -X POST https://api.subpilot.dev/v1/subscriptions \\
+  curl: `curl -X POST https://api.subpilot.kylodo.com/api/v1/subscriptions \\
   -H "Authorization: Bearer $SUBPILOT_KEY" \\
   -H "Idempotency-Key: sub-user-123-pro" \\
   -H "Content-Type: application/json" \\

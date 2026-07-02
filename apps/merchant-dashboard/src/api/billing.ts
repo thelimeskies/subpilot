@@ -1,11 +1,9 @@
 import { api } from "./client";
 import { isApiError } from "./client";
 import type { Customer, Invoice, InvoiceStatus, PaymentChannel, PaymentMethod, PaymentRecordStatus, Subscription } from "../data/seed";
+import { customerPortalBaseUrl } from "../lib/urls";
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "/api/v1";
-const CUSTOMER_PORTAL_BASE =
-  (import.meta.env.VITE_CUSTOMER_PORTAL_URL as string | undefined)?.replace(/\/$/, "") ??
-  (typeof window !== "undefined" ? window.location.origin : "");
 
 type CustomerInput = Omit<
   Customer,
@@ -107,7 +105,7 @@ export async function createPortalSession(
   });
   return {
     token: body.token,
-    url: body.url ?? `${CUSTOMER_PORTAL_BASE}/session/${body.token}`,
+    url: body.url ?? `${customerPortalBaseUrl}/session/${body.token}`,
     emailQueued: body.email_queued ?? false
   };
 }

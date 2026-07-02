@@ -142,7 +142,7 @@ export function DevelopersPage() {
               icon: Code2,
               title: "REST + cURL",
               body: "No SDK? No problem. Every endpoint is well-shaped JSON with idempotency and signing built in.",
-              proof: "curl https://api.subpilot.dev"
+              proof: "curl https://api.subpilot.kylodo.com"
             }
           ]}
         />

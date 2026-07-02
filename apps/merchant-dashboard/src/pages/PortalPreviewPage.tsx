@@ -40,6 +40,7 @@ import {
   formatRelative
 } from "../data/selectors";
 import type { Customer, Invoice, PaymentMethod } from "../data/seed";
+import { customerPortalUrl } from "../lib/urls";
 
 interface UpdateCardState {
   brand: PaymentMethod["brand"];
@@ -378,7 +379,7 @@ export function PortalPreviewPage() {
           <span className="mer-portal-frame__dot" />
           <span className="mer-portal-frame__url">
             <Lock size={12} aria-hidden="true" />
-            portal.subpilot.dev/{org.portalSubdomain}/{customer.id}
+            {customerPortalUrl(org.portalSubdomain, customer.id)}
           </span>
         </div>
 

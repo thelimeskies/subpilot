@@ -82,7 +82,7 @@ export function PortalPage() {
       >
         <BulletList
           items={[
-            "Hosted: open portal.subpilot.dev with a signed session token — no front-end code required.",
+            "Hosted: open portal.subpilot.kylodo.com with a signed session token — no front-end code required.",
             "Embedded: drop into your own app via iframe or SDK with full theming and custom return URLs.",
             "Co-branded: pull merchant logo, colors, and support links from your tenant configuration.",
             "Mobile-first: every screen is responsive and tested for one-handed use on small devices.",

@@ -48,7 +48,7 @@ session = client.portal_sessions.create(
 )
 
 return {"portal_token": session["token"]}`,
-  curl: `curl -X POST https://api.subpilot.dev/api/v1/customers/ \\
+  curl: `curl -X POST https://api.subpilot.kylodo.com/api/v1/customers/ \\
   -H "Authorization: Bearer nse_test_..." \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -64,7 +64,7 @@ export function BillingPortal({ portalToken }) {
     <SubPilotPortal
       publishableKey="pk_test_..."
       token={portalToken}
-      apiBaseUrl="https://api.subpilot.dev/api/v1"
+      apiBaseUrl="https://api.subpilot.kylodo.com/api/v1"
       displayMode="modal"
       open
       showCloseButton

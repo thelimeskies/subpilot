@@ -1,5 +1,6 @@
 import { Building2, CreditCard, Globe2, ShieldCheck, Sparkles, Users } from "lucide-react";
 import type { OnboardingDraft } from "../useOnboardingDraft";
+import { customerPortalUrl } from "../../lib/urls";
 
 interface Props {
   draft: OnboardingDraft;
@@ -22,7 +23,7 @@ export function FinishStep({ draft }: Props) {
     {
       icon: <Globe2 size={16} aria-hidden="true" />,
       label: "Customer portal",
-      value: `${draft.branding.subdomain}.subpilot.dev`,
+      value: customerPortalUrl(draft.branding.subdomain),
       hint: `Brand color ${draft.branding.primaryColor.toUpperCase()}`
     },
     {

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { Button, Modal, Toast, type AlertTone } from "@subpilot/ui";
 
 /**
@@ -37,6 +38,7 @@ const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 let nextId = 1;
 
 export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [pending, setPending] = useState<
     | (ConfirmOptions & { resolve: (value: boolean) => void })
@@ -81,7 +83,12 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
     <FeedbackContext.Provider value={value}>
       {children}
 
-      <div className="mer-toast-stack" aria-live="polite" aria-atomic="false">
+      <div
+        className="mer-toast-stack"
+        data-placement={location.pathname.startsWith("/onboarding") ? "onboarding" : "default"}
+        aria-live="polite"
+        aria-atomic="false"
+      >
         {toasts.map((t) => (
           <Toast key={t.id} tone={t.tone} title={t.title} description={t.description} />
         ))}

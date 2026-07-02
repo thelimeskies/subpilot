@@ -41,6 +41,7 @@ import { useData } from "../data/store";
 import { usePermissions } from "../auth/AuthContext";
 import { formatRelative } from "../data/selectors";
 import { isApiError } from "../api/client";
+import { customerPortalUrl } from "../lib/urls";
 import {
   activateNombaIntegration,
   loadNombaIntegration,
@@ -265,7 +266,7 @@ export function SettingsPage() {
     try {
       await updateSettings({ branding: brandingDraft });
       logAuditEvent({ actor: "You", action: "Updated branding", target: "Settings → Branding" });
-      notify({ tone: "success", title: "Branding saved", description: `Portal lives at ${brandingDraft.portalSubdomain}.subpilot.dev` });
+      notify({ tone: "success", title: "Branding saved", description: `Portal lives at ${customerPortalUrl(brandingDraft.portalSubdomain)}` });
     } catch (err) {
       notify({
         tone: "danger",
@@ -860,7 +861,7 @@ export function SettingsPage() {
         {/* ---------- Branding ---------- */}
         {tab === "branding" ? (
           <div className="mer-section">
-            <CardHeader title="Branding" description="Customer portal subdomain, logo, and primary color." />
+            <CardHeader title="Branding" description="Customer portal URL, logo, and primary color." />
             <div className="sp-grid sp-grid-2">
               <Field label="Primary color" hint="Hex value used in the portal hero and email buttons.">
                 <span>
@@ -871,7 +872,7 @@ export function SettingsPage() {
                   />
                 </span>
               </Field>
-              <Field label="Portal subdomain" hint="{slug}.subpilot.dev — checked for availability when saved.">
+              <Field label="Portal URL slug" hint={`${customerPortalUrl("{slug}")} — checked for availability when saved.`}>
                 <TextInput
                   value={brandingDraft.portalSubdomain}
                   onChange={(e) => setBrandingDraft({ ...brandingDraft, portalSubdomain: e.target.value })}

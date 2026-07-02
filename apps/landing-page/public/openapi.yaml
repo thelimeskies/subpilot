@@ -8,7 +8,7 @@ info:
     invoices, short-lived customer portal sessions, embedded portal runtime
     endpoints, publishable frontend keys, and signed webhook events.
 servers:
-  - url: https://api.subpilot.dev/api/v1
+  - url: https://api.subpilot.kylodo.com/api/v1
     description: Production
   - url: http://localhost:8000/api/v1
     description: Local development

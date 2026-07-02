@@ -33,6 +33,7 @@ import { PageHeader } from "../components/PageHeader";
 import { usePagination } from "../hooks/usePagination";
 import { useFeedback } from "../feedback/ActionFeedback";
 import { isApiError } from "../api/client";
+import { publicApiBaseUrl } from "../lib/urls";
 import { usePermissions } from "../auth/AuthContext";
 import { loadSigningKeys, rotateSigningKeys, type SigningKeys } from "../api/signingKeys";
 import { loadPublishableKeys, rotatePublishableKey, type PublishableKey } from "../api/publishableKeys";
@@ -693,7 +694,7 @@ export function BillingPortal({ portalToken }) {
     <SubPilotPortal
       publishableKey="${activePublishableKey || `pk_${publishableMode}_...`}"
       token={portalToken}
-      apiBaseUrl="https://api.subpilot.dev/api/v1"
+      apiBaseUrl="${publicApiBaseUrl}"
       displayMode="modal"
       open={open}
       showCloseButton
@@ -703,7 +704,7 @@ export function BillingPortal({ portalToken }) {
   );
 }`;
   const sdkServerSnippet = `// Server-side only: create the short-lived portal token with your secret API key.
-const session = await fetch("https://api.subpilot.dev/api/v1/customers/{customer_id}/portal-sessions/", {
+const session = await fetch("${publicApiBaseUrl}/customers/{customer_id}/portal-sessions/", {
   method: "POST",
   headers: {
     "Authorization": "Bearer nse_${publishableMode}_...",

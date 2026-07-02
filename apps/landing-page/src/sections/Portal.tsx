@@ -45,7 +45,7 @@ export function Portal() {
           >
             <div className="lp-portal__phone-head">
               <Smartphone size={14} />
-              <span>portal.subpilot.dev</span>
+              <span>portal.subpilot.kylodo.com</span>
             </div>
             <div className="lp-portal__phone-body">
               <Badge tone="warning">Card update required</Badge>

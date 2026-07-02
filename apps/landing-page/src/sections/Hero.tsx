@@ -76,7 +76,7 @@ function DashboardScene() {
         <span />
         <span />
         <span />
-        <strong>console.subpilot.dev</strong>
+        <strong>app.subpilot.kylodo.com</strong>
       </div>
 
       <div className="lp-scene__body">

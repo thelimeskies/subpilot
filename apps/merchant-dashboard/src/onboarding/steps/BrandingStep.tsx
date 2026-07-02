@@ -3,6 +3,7 @@ import { Button, Field, TextInput } from "@subpilot/ui";
 import { ImagePlus, Palette } from "lucide-react";
 import type { OnboardingDraft } from "../useOnboardingDraft";
 import { useFeedback } from "../../feedback/ActionFeedback";
+import { customerPortalUrl } from "../../lib/urls";
 
 interface Props {
   draft: OnboardingDraft;
@@ -103,8 +104,8 @@ export function BrandingStep({ draft, updateSection }: Props) {
 
         <div className="mer-brand-card">
           <Field
-            label="Portal subdomain"
-            hint="Your customers will use this to access self-service."
+            label="Portal URL slug"
+            hint="Your customers will use this link to access self-service."
           >
             <TextInput
               value={draft.branding.subdomain}
@@ -114,9 +115,7 @@ export function BrandingStep({ draft, updateSection }: Props) {
             />
           </Field>
           <div className="mer-brand-card__url">
-            <span>https://</span>
-            <strong>{draft.branding.subdomain || "your-brand"}</strong>
-            <span>.subpilot.dev</span>
+            <span>{customerPortalUrl(draft.branding.subdomain)}</span>
           </div>
         </div>
       </div>
