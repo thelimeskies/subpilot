@@ -23,8 +23,7 @@ const groups: { title: string; links: FooterLink[] }[] = [
       { label: "Customer API", to: "/developers/customers" },
       { label: "Overview", to: "/developers" },
       { label: "Webhooks", to: "/developers/webhooks" },
-      { label: "Idempotency", to: "/developers/idempotency" },
-      { label: "Storybook", to: "http://localhost:6006", external: true }
+      { label: "Idempotency", to: "/developers/idempotency" }
     ]
   },
   {

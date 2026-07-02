@@ -21,6 +21,7 @@ import {
   CtaBand
 } from "../components/PageBuilders";
 import { fadeUp, inView, stagger } from "../lib/motion";
+import { customerPortalUrl } from "../lib/urls";
 
 type SnippetKey = "python" | "curl" | "portal";
 
@@ -122,7 +123,7 @@ export function CustomerApiPage() {
         }
         lede="Create customers, attach tokenized payment methods, issue scoped portal sessions, and let customers pay invoices or update cards without exposing secret API keys in the browser."
         primaryCta={{ label: "Open API reference", to: "/developers/api" }}
-        secondaryCta={{ label: "Run portal demo", to: "http://localhost:5177", external: true }}
+        secondaryCta={{ label: "Open customer portal", to: customerPortalUrl }}
         badges={["Customers", "Payment methods", "Portal sessions", "Python SDK"]}
       />
 

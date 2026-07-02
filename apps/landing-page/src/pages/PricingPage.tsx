@@ -10,6 +10,7 @@ import {
   BulletList
 } from "../components/PageBuilders";
 import { fadeUp, stagger, inView } from "../lib/motion";
+import { isExternalUrl, resolveProductUrl } from "../lib/urls";
 
 interface Tier {
   name: string;
@@ -116,8 +117,8 @@ export function PricingPage() {
                 ))}
               </ul>
               <div className="lp-pricing__cta">
-                {tier.cta.to.startsWith("/merchant") ? (
-                  <a href={tier.cta.to}>
+                {isExternalUrl(resolveProductUrl(tier.cta.to)) ? (
+                  <a href={resolveProductUrl(tier.cta.to)}>
                     <Button
                       variant={tier.highlighted ? "primary" : "secondary"}
                       icon={<ArrowRight size={16} />}

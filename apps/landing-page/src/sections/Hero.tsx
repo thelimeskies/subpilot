@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Badge, Button } from "@subpilot/ui";
 import { ArrowRight, BookOpen, CheckCircle2, RefreshCw, Webhook } from "lucide-react";
 import { fadeUp, slideInRight, stagger, inView } from "../lib/motion";
+import { merchantAppUrl } from "../lib/urls";
 
 export function Hero() {
   return (
@@ -34,7 +35,7 @@ export function Hero() {
             instead of patching billing.
           </motion.p>
           <motion.div variants={fadeUp} className="lp-hero__actions">
-            <a href="/merchant">
+            <a href={merchantAppUrl}>
               <Button icon={<ArrowRight size={16} />}>Open the console</Button>
             </a>
             <a href="#developers">

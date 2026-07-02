@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@subpilot/ui";
 import { ArrowLeft } from "lucide-react";
+import { merchantAppUrl } from "../lib/urls";
 
 export function NotFoundPage() {
   return (
@@ -17,7 +18,7 @@ export function NotFoundPage() {
               Back to home
             </Button>
           </Link>
-          <a href="/merchant">
+          <a href={merchantAppUrl}>
             <Button>Open the console</Button>
           </a>
         </div>

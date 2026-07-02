@@ -5,6 +5,7 @@ import { Button, Badge } from "@subpilot/ui";
 import { ArrowRight, ChevronRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { fadeUp, stagger, inView } from "../lib/motion";
+import { isExternalUrl, resolveProductUrl } from "../lib/urls";
 
 /* -------------------- PageHero -------------------- */
 
@@ -108,17 +109,19 @@ function CtaLink({
   external?: boolean;
   children: ReactNode;
 }) {
+  const resolvedTo = resolveProductUrl(to);
+
   if (external) {
     return (
-      <a href={to} target="_blank" rel="noreferrer">
+      <a href={resolvedTo} target="_blank" rel="noreferrer">
         {children}
       </a>
     );
   }
-  if (to.startsWith("/merchant") || to.startsWith("/admin")) {
-    return <a href={to}>{children}</a>;
+  if (isExternalUrl(resolvedTo)) {
+    return <a href={resolvedTo}>{children}</a>;
   }
-  return <Link to={to}>{children}</Link>;
+  return <Link to={resolvedTo}>{children}</Link>;
 }
 
 /* -------------------- ContentSection -------------------- */

@@ -3,6 +3,7 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Button } from "@subpilot/ui";
 import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { merchantAppUrl } from "../lib/urls";
 
 interface SubLink {
   to: string;
@@ -174,7 +175,7 @@ export function Nav() {
         </nav>
 
         <div className="lp-nav__actions">
-          <a href="/merchant" aria-label="Open the merchant console">
+          <a href={merchantAppUrl} aria-label="Open the merchant console">
             <Button icon={<ArrowRight size={16} />}>Open the console</Button>
           </a>
         </div>
@@ -211,7 +212,7 @@ export function Nav() {
               </ul>
             </div>
           ))}
-          <a href="/merchant" onClick={() => setOpen(false)}>
+          <a href={merchantAppUrl} onClick={() => setOpen(false)}>
             <Button icon={<ArrowRight size={16} />}>Open the console</Button>
           </a>
         </motion.div>

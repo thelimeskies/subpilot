@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Button } from "@subpilot/ui";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { fadeUp, inView } from "../lib/motion";
+import { merchantAppUrl } from "../lib/urls";
 
 export function CTA() {
   return (
@@ -17,7 +18,7 @@ export function CTA() {
               recovered renewal and a signed webhook delivered downstream.
             </p>
             <div className="lp-cta__actions">
-              <a href="/merchant">
+              <a href={merchantAppUrl}>
                 <Button icon={<ArrowRight size={16} />}>Open the merchant console</Button>
               </a>
               <a href="#developers">
