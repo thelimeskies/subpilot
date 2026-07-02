@@ -101,6 +101,9 @@ class NombaClient:
             return getattr(settings, "NOMBA_PLATFORM_LIVE_SUB_ACCOUNT_ID", "") or ""
         return getattr(settings, "NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID", "") or ""
 
+    def routing_account_id(self, explicit_sub_account_id: str = "") -> str:
+        return self._sub_account_id(explicit_sub_account_id) or self.credentials.account_id
+
     # ------------------------------------------------------------------ auth
     def issue_token(self) -> dict[str, Any]:
         payload = self._request_json(
@@ -362,6 +365,13 @@ class NombaClient:
         expires_at = parse_datetime(expires_raw) if expires_raw else None
         if expires_at is not None and timezone.is_naive(expires_at):
             expires_at = timezone.make_aware(expires_at, datetime_timezone.utc)
+        if expires_at is None and (data.get("expiresIn") or data.get("expires_in")):
+            try:
+                expires_at = timezone.now() + timedelta(
+                    seconds=int(data.get("expiresIn") or data.get("expires_in"))
+                )
+            except (TypeError, ValueError):
+                expires_at = None
         if access_token:
             self.environment.nomba_access_token = access_token
         if refresh_token:
@@ -647,9 +657,14 @@ def credentials_for_environment(environment) -> NombaCredentials:
         platform_client_secret = getattr(settings, "NOMBA_PLATFORM_TEST_CLIENT_SECRET", "")
 
     byok = environment.nomba_integration_mode == "byok"
-    account_id = environment.nomba_account_id or platform_account_id
-    client_id = environment.nomba_client_id if byok else platform_client_id
-    client_secret = environment.nomba_client_secret if byok else platform_client_secret
+    if byok:
+        account_id = environment.nomba_account_id or platform_account_id
+        client_id = environment.nomba_client_id
+        client_secret = environment.nomba_client_secret
+    else:
+        account_id = platform_account_id or environment.nomba_account_id
+        client_id = platform_client_id
+        client_secret = platform_client_secret
     return NombaCredentials(
         mode=mode,
         account_id=account_id,

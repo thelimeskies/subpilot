@@ -52,7 +52,7 @@ class NombaPaymentAdapter:
                         "customerEmail": invoice.customer.email,
                         "amount": f"{Decimal(invoice.amount_due_minor) / Decimal(100):.2f}",
                         "currency": invoice.currency,
-                        "accountId": invoice.environment.nomba_sub_account_id or invoice.environment.nomba_account_id,
+                        "accountId": client.routing_account_id(),
                         "orderMetaData": {
                             "invoice_id": str(invoice.id),
                             "customer_id": str(invoice.customer_id),

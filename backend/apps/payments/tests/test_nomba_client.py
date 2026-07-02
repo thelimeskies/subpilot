@@ -153,9 +153,98 @@ def test_platform_credentials_are_used_when_environment_is_not_byok():
     env = _environment(byok=False)
     creds = credentials_for_environment(env)
 
-    assert creds.account_id == "acct_123"
+    assert creds.account_id == "platform-account"
     assert creds.client_id == "platform-client"
     assert creds.client_secret == "platform-secret"
+
+
+@override_settings(
+    NOMBA_PLATFORM_TEST_ACCOUNT_ID="parent-account",
+    NOMBA_PLATFORM_TEST_CLIENT_ID="platform-client",
+    NOMBA_PLATFORM_TEST_CLIENT_SECRET="platform-secret",
+)
+def test_platform_issue_token_uses_parent_account_header(monkeypatch):
+    env = _environment(byok=False)
+    env.nomba_account_id = "mistaken-sub-account"
+    env.save(update_fields=["nomba_account_id", "updated_at"])
+    seen = {}
+
+    def fake_urlopen(req, timeout):
+        seen["url"] = req.full_url
+        seen["headers"] = dict(req.header_items())
+        seen["body"] = json.loads(req.data.decode())
+        return _Response(
+            {
+                "code": "00",
+                "data": {
+                    "access_token": "access-token",
+                    "refresh_token": "refresh-token",
+                    "expiresIn": 1800,
+                },
+            }
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+    client.issue_token()
+
+    assert seen["url"] == "https://sandbox.nomba.com/v1/auth/token/issue"
+    assert seen["headers"]["Accountid"] == "parent-account"
+    assert seen["body"]["client_id"] == "platform-client"
+
+
+@override_settings(
+    NOMBA_PLATFORM_TEST_ACCOUNT_ID="parent-account",
+    NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account",
+    NOMBA_PLATFORM_TEST_CLIENT_ID="platform-client",
+    NOMBA_PLATFORM_TEST_CLIENT_SECRET="platform-secret",
+)
+def test_platform_nomba_requests_keep_parent_account_in_header(monkeypatch):
+    env = _environment(byok=False)
+    env.nomba_access_token = "access-token"
+    env.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    env.nomba_account_id = "mistaken-sub-account"
+    env.save(
+        update_fields=[
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "nomba_account_id",
+            "updated_at",
+        ]
+    )
+    seen = []
+
+    def fake_urlopen(req, timeout):
+        seen.append(
+            (req.get_method(), req.full_url, dict(req.header_items())["Accountid"])
+        )
+        return _Response({"code": "00"})
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+
+    client.bank_transfer({"merchantTxRef": "ref"})
+    client.vend_airtime({"amount": 100})
+    client.fetch_account_transactions()
+
+    assert seen == [
+        (
+            "POST",
+            "https://sandbox.nomba.com/v2/transfers/bank/platform-sub-account",
+            "parent-account",
+        ),
+        (
+            "POST",
+            "https://sandbox.nomba.com/v1/bill/topup/platform-sub-account",
+            "parent-account",
+        ),
+        (
+            "GET",
+            "https://sandbox.nomba.com/v1/transactions/accounts/platform-sub-account",
+            "parent-account",
+        ),
+    ]
 
 
 @override_settings(NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account")
@@ -218,6 +307,7 @@ def test_virtual_account_creation_uses_platform_sub_account_fallback(monkeypatch
 
 
 @override_settings(
+    NOMBA_PLATFORM_TEST_ACCOUNT_ID="platform-account",
     NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID="platform-sub-account",
     NOMBA_PLATFORM_TEST_CLIENT_ID="platform-client",
     NOMBA_PLATFORM_TEST_CLIENT_SECRET="platform-secret",
@@ -230,7 +320,9 @@ def test_client_sub_account_wrappers_use_platform_fallback(monkeypatch):
     seen = []
 
     def fake_urlopen(req, timeout):
-        seen.append((req.get_method(), req.full_url))
+        seen.append(
+            (req.get_method(), req.full_url, dict(req.header_items())["Accountid"])
+        )
         return _Response({"code": "00"})
 
     monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
@@ -241,9 +333,21 @@ def test_client_sub_account_wrappers_use_platform_fallback(monkeypatch):
     client.fetch_account_transactions()
 
     assert seen == [
-        ("POST", "https://sandbox.nomba.com/v2/transfers/bank/platform-sub-account"),
-        ("POST", "https://sandbox.nomba.com/v1/bill/topup/platform-sub-account"),
-        ("GET", "https://sandbox.nomba.com/v1/transactions/accounts/platform-sub-account"),
+        (
+            "POST",
+            "https://sandbox.nomba.com/v2/transfers/bank/platform-sub-account",
+            "platform-account",
+        ),
+        (
+            "POST",
+            "https://sandbox.nomba.com/v1/bill/topup/platform-sub-account",
+            "platform-account",
+        ),
+        (
+            "GET",
+            "https://sandbox.nomba.com/v1/transactions/accounts/platform-sub-account",
+            "platform-account",
+        ),
     ]
 
 
