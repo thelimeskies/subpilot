@@ -1,0 +1,21 @@
+{% extends "email/base.html" %}
+{% block title %}Invoice reminder{% endblock %}
+{% block content %}
+  <p style="margin:0 0 16px 0;"><span style="display:inline-block; padding:4px 10px; border-radius:999px; background:#FFFBEB; color:#92400E; font-size:11px; font-weight:700; letter-spacing:0.06em;">REMINDER</span></p>
+  <h1 style="margin:0 0 12px 0; color:#0B1720; font-size:26px; line-height:34px; font-weight:800; letter-spacing:-0.01em;">Invoice {{ invoice_number }} is awaiting payment</h1>
+  <p style="margin:0 0 24px 0; color:#52615D; font-size:16px; line-height:26px;">Hi {{ recipient_name }}, {{ merchant_name }} sent a reminder for {{ amount_due }} via SubPilot.</p>
+  {% if message %}
+    <div style="margin:0 0 24px 0; padding:14px 16px; border-radius:10px; background:#F8FAF9; color:#334155; font-size:14px; line-height:22px;">{{ message|linebreaksbr }}</div>
+  {% endif %}
+  {% if payment_url %}
+    <p style="margin:0 0 24px 0;">
+      <a href="{{ payment_url }}" style="display:inline-block; background:#14B8A6; color:#FFFFFF; text-decoration:none; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:700;">Pay invoice</a>
+    </p>
+    <p style="margin:0 0 24px 0; word-break:break-all; color:#0F766E; font-size:13px; line-height:20px;">If the button doesn&rsquo;t work, paste this URL: {{ payment_url }}</p>
+  {% endif %}
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse:collapse; color:#52615D; font-size:14px; line-height:22px;">
+    <tr><td style="padding:12px 0; border-top:1px solid #F1F3F7;">Invoice</td><td align="right" style="padding:12px 0; border-top:1px solid #F1F3F7; color:#0B1720; font-weight:600;">{{ invoice_number }}</td></tr>
+    <tr><td style="padding:12px 0; border-top:1px solid #F1F3F7;">Due</td><td align="right" style="padding:12px 0; border-top:1px solid #F1F3F7; color:#0B1720; font-weight:600;">{{ due_at|default:"-" }}</td></tr>
+    <tr><td style="padding:12px 0; border-top:1px solid #F1F3F7; border-bottom:1px solid #F1F3F7;">Amount due</td><td align="right" style="padding:12px 0; border-top:1px solid #F1F3F7; border-bottom:1px solid #F1F3F7; color:#0B1720; font-weight:600;">{{ amount_due }}</td></tr>
+  </table>
+{% endblock %}
