@@ -116,6 +116,13 @@ class NombaPaymentAdapter:
         )
         provider_event_id = str(payload.get("requestId") or payload.get("request_id") or "")
         processor_reference = str(transaction.get("transactionId") or data.get("reference") or data.get("id") or "")
+        order_reference = str(
+            data.get("orderReference")
+            or data.get("order_reference")
+            or transaction.get("orderReference")
+            or transaction.get("order_reference")
+            or ""
+        )
         amount = transaction.get("transactionAmount") or data.get("amount") or data.get("amount_minor")
         event_type = {
             "payment_success": "payment.succeeded",
@@ -130,6 +137,7 @@ class NombaPaymentAdapter:
             "provider_event_id": provider_event_id,
             "event_type": event_type,
             "processor_reference": processor_reference,
+            "order_reference": order_reference,
             "amount_minor": int(float(amount) * 100) if amount not in {None, ""} else None,
             "currency": data.get("currency", ""),
             "failure_code": str(data.get("failure_code") or transaction.get("responseCode") or ""),

@@ -9,6 +9,7 @@ from apps.accounts.models import Environment, Merchant, Role, TeamMember, User
 from apps.catalog.models import Plan, PriceVersion, Product
 from apps.customers.models import Customer, PaymentMethod
 from apps.invoices.models import Invoice
+from apps.payments.models import PaymentAttempt
 from apps.subscriptions.models import Subscription, SubscriptionItem
 
 PASSWORD = "Subpilot1!"
@@ -261,6 +262,12 @@ def test_portal_payment_method_checkout_starts_nomba_tokenized_checkout(monkeypa
     assert seen["body"]["order"]["allowedPaymentMethods"] == ["Card"]
     assert seen["body"]["order"]["callbackUrl"] == "https://example.test/nomba/callback"
     assert seen["body"]["order"]["orderMetaData"]["invoice_id"] == str(invoice.id)
+    attempt = PaymentAttempt.objects.get(invoice=invoice)
+    assert attempt.status == PaymentAttempt.Status.PENDING
+    assert attempt.amount_minor == invoice.amount_due_minor
+    assert attempt.processor_reference == "checkout-ref-123"
+    assert attempt.idempotency_key == f"checkout:{invoice.id}"
+    assert seen["body"]["order"]["orderMetaData"]["payment_attempt_id"] == str(attempt.id)
     assert "cardNumber" not in json.dumps(seen["body"])
     assert "cvc" not in json.dumps(seen["body"]).lower()
     invoice.refresh_from_db()
@@ -286,6 +293,53 @@ def test_portal_rejects_direct_nomba_card_token_attachment():
 
     assert response.status_code == 400, response.content
     assert response.json()["reason"] == "Use the hosted Nomba checkout endpoint to attach Nomba cards."
+
+
+def test_portal_checkout_records_failed_attempt_when_nomba_returns_no_url(monkeypatch):
+    user, customer = _setup_workspace()
+    environment = customer.environment
+    environment.nomba_integration_mode = Environment.NombaIntegrationMode.BYOK
+    environment.nomba_account_id = "acct_123"
+    environment.nomba_client_id = "client_123"
+    environment.nomba_client_secret = "secret_123"
+    environment.nomba_access_token = "access-token"
+    environment.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    environment.save(
+        update_fields=[
+            "nomba_integration_mode",
+            "nomba_account_id",
+            "nomba_client_id",
+            "nomba_client_secret_encrypted",
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+    invoice = customer.invoices.get(number="INV-PORTAL-001")
+    client = _signed_in_client(user)
+    token, _session = _portal_token(
+        client,
+        customer,
+        actions=["view_subscriptions", "view_invoices", "update_payment_method"],
+    )
+
+    def fake_urlopen(req, timeout):
+        return _NombaResponse({"code": "400", "description": "Bad checkout request", "data": {}})
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    response = APIClient().post(
+        "/api/v1/portal/payment-methods/checkout",
+        data={"invoice_id": str(invoice.id)},
+        format="json",
+        HTTP_AUTHORIZATION=f"Portal {token}",
+    )
+
+    assert response.status_code == 502, response.content
+    attempt = PaymentAttempt.objects.get(invoice=invoice)
+    assert attempt.status == PaymentAttempt.Status.FAILED
+    assert attempt.failure_code == "400"
+    assert attempt.failure_message == "Bad checkout request"
 
 
 def test_portal_checkout_confirm_polls_nomba_and_saves_tokenized_card(monkeypatch):
@@ -375,6 +429,10 @@ def test_portal_checkout_confirm_polls_nomba_and_saves_tokenized_card(monkeypatc
     assert payment_method.is_default is True
     invoice.refresh_from_db()
     assert invoice.status == Invoice.Status.PAID
+    attempt = PaymentAttempt.objects.get(invoice=invoice)
+    assert attempt.status == PaymentAttempt.Status.SUCCEEDED
+    assert attempt.processor_reference == "txn_poll_123"
+    assert attempt.amount_minor == 1_500_000
 
 
 def test_portal_checkout_confirm_prefers_stored_nomba_reference(monkeypatch):
@@ -450,3 +508,6 @@ def test_portal_checkout_confirm_prefers_stored_nomba_reference(monkeypatch):
     assert response.status_code == 200, response.content
     assert response.json()["confirmed"] is True
     assert seen == [f"https://sandbox.nomba.com/v1/checkout/order/{nomba_reference}"]
+    attempt = PaymentAttempt.objects.get(invoice=invoice)
+    assert attempt.status == PaymentAttempt.Status.SUCCEEDED
+    assert attempt.processor_reference == "txn_poll_456"

@@ -108,6 +108,7 @@ def _route_event(
         if invoice is None:
             return
         attempt = _latest_pending_attempt(invoice)
+        payment_method = _payment_method_for_invoice(invoice)
         if attempt is None and invoice.status == Invoice.Status.PAID:
             if PaymentAttempt.objects.filter(
                 invoice=invoice,
@@ -118,8 +119,10 @@ def _route_event(
             attempt.status = PaymentAttempt.Status.SUCCEEDED
             if reference:
                 attempt.processor_reference = reference[:128]
+            if attempt.payment_method_id is None and payment_method is not None:
+                attempt.payment_method = payment_method
             attempt.save(
-                update_fields=["status", "processor_reference", "updated_at"]
+                update_fields=["status", "processor_reference", "payment_method", "updated_at"]
             )
         else:
             amount_minor = _event_amount_minor(parsed, invoice)
@@ -127,7 +130,7 @@ def _route_event(
                 merchant=merchant,
                 environment=environment,
                 invoice=invoice,
-                payment_method=getattr(invoice.subscription, "default_payment_method", None),
+                payment_method=payment_method,
                 attempt_number=_next_attempt_number(invoice),
                 status=PaymentAttempt.Status.SUCCEEDED,
                 amount_minor=amount_minor,
@@ -275,6 +278,19 @@ def _find_subscription_for_event(
 
 def _find_invoice_for_event(merchant, environment, parsed: dict[str, Any]) -> Invoice | None:
     metadata = _webhook_metadata(parsed)
+    attempt_id = metadata.get("payment_attempt_id") if isinstance(metadata, dict) else None
+    if attempt_id:
+        attempt = (
+            PaymentAttempt.objects.filter(
+                id=attempt_id,
+                merchant=merchant,
+                environment=environment,
+            )
+            .select_related("invoice")
+            .first()
+        )
+        if attempt is not None:
+            return attempt.invoice
     invoice_id = metadata.get("invoice_id") if isinstance(metadata, dict) else None
     qs = Invoice.objects.filter(merchant=merchant, environment=environment)
     if invoice_id:
@@ -282,8 +298,12 @@ def _find_invoice_for_event(merchant, environment, parsed: dict[str, Any]) -> In
             return qs.get(id=invoice_id)
         except Invoice.DoesNotExist:
             pass
-    reference = parsed.get("processor_reference") or ""
-    if reference:
+    references = [
+        str(parsed.get("processor_reference") or ""),
+        str(parsed.get("order_reference") or ""),
+        str(metadata.get("subpilot_idempotency_key") or "").replace(":", "-"),
+    ]
+    for reference in [value for value in references if value]:
         attempt = (
             PaymentAttempt.objects.filter(
                 merchant=merchant,
@@ -296,6 +316,21 @@ def _find_invoice_for_event(merchant, environment, parsed: dict[str, Any]) -> In
         if attempt is not None:
             return attempt.invoice
     return None
+
+
+def _payment_method_for_invoice(invoice: Invoice) -> PaymentMethod | None:
+    subscription = getattr(invoice, "subscription", None)
+    if subscription is not None and subscription.default_payment_method_id:
+        return subscription.default_payment_method
+    return (
+        invoice.customer.payment_methods.filter(
+            provider=PaymentMethod.Provider.NOMBA,
+            status=PaymentMethod.Status.ACTIVE,
+            is_default=True,
+        )
+        .order_by("-created_at")
+        .first()
+    )
 
 
 def _webhook_metadata(parsed: dict[str, Any]) -> dict:

@@ -17,7 +17,7 @@ from apps.customers.models import Customer, PaymentMethod
 from apps.invoices.models import Invoice, InvoiceLineItem
 from apps.invoices.services.create_invoice import create_invoice
 from apps.invoices.services.lifecycle import finalize_invoice
-from apps.payments.models import ProcessorEvent
+from apps.payments.models import PaymentAttempt, ProcessorEvent
 from apps.subscriptions.models import Subscription, SubscriptionItem
 
 pytestmark = pytest.mark.django_db
@@ -226,6 +226,53 @@ def test_nomba_success_webhook_attaches_token_and_activates_subscription():
     assert subscription.status == Subscription.Status.ACTIVE
     assert subscription.default_payment_method == payment_method
     assert invoice.status == Invoice.Status.PAID
+    attempt = PaymentAttempt.objects.get(invoice=invoice)
+    assert attempt.status == PaymentAttempt.Status.SUCCEEDED
+    assert attempt.processor_reference == payload["data"]["transaction"]["transactionId"]
+    assert attempt.amount_minor == 1000
+
+
+def test_nomba_webhook_matches_pending_checkout_attempt_by_order_reference():
+    merchant, environment, customer, subscription, invoice = _subscription_workspace()
+    order_reference = "48933b85-b994-45b7-abf7-e46e007b3d4f"
+    pending_attempt = PaymentAttempt.objects.create(
+        merchant=merchant,
+        environment=environment,
+        invoice=invoice,
+        attempt_number=1,
+        status=PaymentAttempt.Status.PENDING,
+        amount_minor=invoice.amount_due_minor,
+        currency=invoice.currency,
+        processor_reference=order_reference,
+        idempotency_key=f"checkout:{invoice.id}",
+        metadata={"source": "nomba_hosted_checkout"},
+    )
+    payload = _payload()
+    payload["data"]["orderReference"] = order_reference
+    payload["data"]["tokenizedCardData"] = {
+        "tokenKey": "tok_nomba_saved_card",
+        "cardType": "Visa",
+        "cardPan": "411111******4242",
+        "tokenExpirationDate": "12/30",
+    }
+    timestamp = "2025-09-29T10:51:44Z"
+    body = json.dumps(payload).encode()
+
+    response = APIClient().post(
+        f"/api/v1/payments/webhooks/nomba/{merchant.id}/{environment.mode}/",
+        data=body,
+        content_type="application/json",
+        HTTP_NOMBA_SIGNATURE=_signature(payload, environment.webhook_secret, timestamp),
+        HTTP_NOMBA_TIMESTAMP=timestamp,
+    )
+
+    assert response.status_code == 200, response.content
+    pending_attempt.refresh_from_db()
+    subscription.refresh_from_db()
+    assert pending_attempt.status == PaymentAttempt.Status.SUCCEEDED
+    assert pending_attempt.processor_reference == payload["data"]["transaction"]["transactionId"]
+    assert pending_attempt.payment_method == subscription.default_payment_method
+    assert invoice.payment_attempts.count() == 1
 
 
 @override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")

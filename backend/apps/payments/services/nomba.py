@@ -360,9 +360,15 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
     client = get_nomba_client(invoice.environment)
     stable_key = idempotency_key or f"checkout:{invoice.id}"
     order_reference = stable_key.replace(":", "-")
+    attempt = _get_or_create_checkout_attempt(
+        invoice=invoice,
+        idempotency_key=stable_key,
+        order_reference=order_reference,
+    )
     metadata = {
         "invoice_id": str(invoice.id),
         "customer_id": str(invoice.customer_id),
+        "payment_attempt_id": str(attempt.id),
         "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
         "subpilot_idempotency_key": stable_key,
     }
@@ -380,14 +386,39 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
         },
         "tokenizeCard": True,
     }
-    response = client.create_checkout_order(payload)
+    try:
+        response = client.create_checkout_order(payload)
+    except NombaError as exc:
+        attempt.status = PaymentAttempt.Status.FAILED
+        attempt.failure_code = "processor_error"
+        attempt.failure_message = str(exc)[:400]
+        attempt.save(update_fields=["status", "failure_code", "failure_message", "updated_at"])
+        raise
     data = response.get("data") if isinstance(response.get("data"), dict) else {}
     checkout_url = str(data.get("checkoutLink") or "")
     nomba_reference = str(data.get("orderReference") or order_reference)
+    if not checkout_url:
+        attempt.status = PaymentAttempt.Status.FAILED
+        attempt.failure_code = str(response.get("code") or "processor_error")[:64]
+        attempt.failure_message = str(
+            response.get("description") or data.get("message") or "Nomba did not return a checkout URL."
+        )[:400]
+        attempt.save(update_fields=["status", "failure_code", "failure_message", "updated_at"])
+        return response
+    attempt.processor_reference = nomba_reference[:128]
+    attempt.metadata = {
+        **(attempt.metadata or {}),
+        "source": "nomba_hosted_checkout",
+        "checkout_url_created": bool(checkout_url),
+        "local_order_reference": order_reference,
+        "nomba_order_reference": nomba_reference,
+    }
+    attempt.save(update_fields=["processor_reference", "metadata", "updated_at"])
     invoice.hosted_payment_url = checkout_url
     invoice.metadata = {
         **(invoice.metadata or {}),
         "nomba_checkout_order_reference": nomba_reference,
+        "nomba_checkout_payment_attempt_id": str(attempt.id),
         "nomba_tokenize_card": True,
         "nomba_checkout_metadata": metadata,
     }
@@ -405,6 +436,71 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
         },
     )
     return response
+
+
+def _get_or_create_checkout_attempt(
+    *,
+    invoice: Invoice,
+    idempotency_key: str,
+    order_reference: str,
+) -> PaymentAttempt:
+    attempt = PaymentAttempt.objects.filter(
+        merchant=invoice.merchant,
+        environment=invoice.environment,
+        idempotency_key=idempotency_key,
+    ).first()
+    if attempt is not None:
+        if attempt.status in {PaymentAttempt.Status.FAILED, PaymentAttempt.Status.ABANDONED}:
+            attempt.status = PaymentAttempt.Status.PENDING
+            attempt.failure_code = ""
+            attempt.failure_message = ""
+            attempt.amount_minor = invoice.amount_due_minor
+            attempt.currency = invoice.currency
+            attempt.processor_reference = order_reference[:128]
+            attempt.metadata = {
+                **(attempt.metadata or {}),
+                "source": "nomba_hosted_checkout",
+                "local_order_reference": order_reference,
+            }
+            attempt.save(
+                update_fields=[
+                    "status",
+                    "failure_code",
+                    "failure_message",
+                    "amount_minor",
+                    "currency",
+                    "processor_reference",
+                    "metadata",
+                    "updated_at",
+                ]
+            )
+        return attempt
+    return PaymentAttempt.objects.create(
+        merchant=invoice.merchant,
+        environment=invoice.environment,
+        invoice=invoice,
+        payment_method=getattr(invoice.subscription, "default_payment_method", None),
+        attempt_number=_next_checkout_attempt_number(invoice),
+        status=PaymentAttempt.Status.PENDING,
+        amount_minor=invoice.amount_due_minor,
+        currency=invoice.currency,
+        processor_reference=order_reference[:128],
+        idempotency_key=idempotency_key,
+        metadata={
+            "source": "nomba_hosted_checkout",
+            "local_order_reference": order_reference,
+        },
+    )
+
+
+def _next_checkout_attempt_number(invoice: Invoice) -> int:
+    last = (
+        PaymentAttempt.objects.filter(invoice=invoice)
+        .order_by("-attempt_number")
+        .values_list("attempt_number", flat=True)
+        .first()
+    )
+    return (last or 0) + 1
 
 
 def confirm_nomba_tokenized_checkout(
