@@ -170,9 +170,44 @@ def test_expired_token_refresh_does_not_recurse_before_checkout(monkeypatch):
     assert payload["data"]["checkoutLink"] == "https://checkout.test/pay"
     assert len(calls) == 2
     assert calls[0][1].endswith("/v1/auth/token/refresh")
-    assert "Authorization" not in calls[0][2]
+    assert calls[0][2]["Authorization"] == "Bearer expired-access"
     assert calls[1][1].endswith("/v1/checkout/order")
     assert calls[1][2]["Authorization"] == "Bearer new-access"
+
+
+def test_missing_access_token_issues_new_token_before_checkout(monkeypatch):
+    env = _environment()
+    env.nomba_refresh_token = "refresh-token"
+    env.nomba_token_expires_at = timezone.now() - timedelta(minutes=1)
+    env.save(update_fields=["nomba_refresh_token_encrypted", "nomba_token_expires_at", "updated_at"])
+    calls = []
+
+    def fake_urlopen(req, timeout):
+        calls.append((req.get_method(), req.full_url, dict(req.header_items()), req.data))
+        if req.full_url.endswith("/v1/auth/token/issue"):
+            return _Response(
+                {
+                    "code": "00",
+                    "data": {
+                        "access_token": "issued-access",
+                        "refresh_token": "issued-refresh",
+                        "expiresIn": 1800,
+                    },
+                }
+            )
+        return _Response({"code": "00", "data": {"checkoutLink": "https://checkout.test/pay"}})
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+    payload = client.create_checkout_order({"order": {"orderReference": "checkout-ref"}})
+
+    assert payload["data"]["checkoutLink"] == "https://checkout.test/pay"
+    assert len(calls) == 2
+    assert calls[0][1].endswith("/v1/auth/token/issue")
+    assert "Authorization" not in calls[0][2]
+    assert calls[1][1].endswith("/v1/checkout/order")
+    assert calls[1][2]["Authorization"] == "Bearer issued-access"
 
 
 def test_live_calls_require_explicit_activation():

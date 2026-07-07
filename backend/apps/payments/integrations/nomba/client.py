@@ -120,16 +120,19 @@ class NombaClient:
 
     def refresh_token(self) -> dict[str, Any]:
         refresh_token = self.environment.nomba_refresh_token
-        if not refresh_token:
+        access_token = self.environment.nomba_access_token
+        if not refresh_token or not access_token:
             return self.issue_token()
-        payload = self._request_json(
-            "POST",
-            "/v1/auth/token/refresh",
-            body={"grant_type": "refresh_token", "refresh_token": refresh_token},
-            authorized=False,
-            enforce_live_activation=False,
-            refresh_on_401=False,
-        )
+        try:
+            payload = self._send(
+                "POST",
+                "/v1/auth/token/refresh",
+                body={"grant_type": "refresh_token", "refresh_token": refresh_token},
+                authorized=True,
+                access_token=access_token,
+            )
+        except NombaAuthError:
+            return self.issue_token()
         data = payload.get("data") if isinstance(payload, dict) else {}
         self._persist_token(data if isinstance(data, dict) else {})
         return payload
@@ -195,6 +198,7 @@ class NombaClient:
         body: dict[str, Any] | None = None,
         query: dict[str, Any] | None = None,
         authorized: bool = True,
+        access_token: str | None = None,
     ) -> dict[str, Any]:
         url = self._url(path, query)
         headers = {
@@ -205,7 +209,7 @@ class NombaClient:
             "accountId": self.credentials.account_id,
         }
         if authorized:
-            headers["Authorization"] = f"Bearer {self.environment.nomba_access_token}"
+            headers["Authorization"] = f"Bearer {access_token or self.environment.nomba_access_token}"
         data = json.dumps(body or {}).encode("utf-8") if body is not None else None
         req = request.Request(url, data=data, headers=headers, method=method.upper())
         self._log_request(method=method, url=url, headers=headers, body=body)
