@@ -97,12 +97,12 @@ class NombaClient:
         try:
             from apps.platform_admin.selectors.settings import get_platform_nomba_config
 
-            configured = get_platform_nomba_config(self.environment.mode).get("sub_account_id") or ""
+            configured = get_platform_nomba_config(self.credentials.mode).get("sub_account_id") or ""
             if configured:
                 return str(configured)
         except Exception:
             pass
-        if self.environment.mode == "live":
+        if self.credentials.mode == "live":
             return getattr(settings, "NOMBA_PLATFORM_LIVE_SUB_ACCOUNT_ID", "") or ""
         return getattr(settings, "NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID", "") or ""
 
@@ -714,14 +714,24 @@ class NombaClient:
 
 
 def credentials_for_environment(environment) -> NombaCredentials:
-    mode = environment.mode
-    is_live = mode == "live"
+    byok = environment.nomba_integration_mode == "byok"
+    requested_mode = environment.mode
     try:
         from apps.platform_admin.selectors.settings import get_platform_nomba_config
 
-        platform_config = get_platform_nomba_config(mode)
+        platform_config = get_platform_nomba_config(requested_mode)
     except Exception:
         platform_config = {}
+    active_mode = str(platform_config.get("active_mode") or "")
+    mode = "live" if not byok and active_mode == "live" else requested_mode
+    is_live = mode == "live"
+    if not byok and mode != requested_mode:
+        try:
+            from apps.platform_admin.selectors.settings import get_platform_nomba_config
+
+            platform_config = get_platform_nomba_config(mode)
+        except Exception:
+            platform_config = {}
     if is_live:
         base_url = platform_config.get("base_url") or getattr(settings, "NOMBA_LIVE_BASE_URL", "https://api.nomba.com")
         platform_account_id = platform_config.get("account_id") or getattr(settings, "NOMBA_PLATFORM_LIVE_ACCOUNT_ID", "")
@@ -735,7 +745,6 @@ def credentials_for_environment(environment) -> NombaCredentials:
         platform_client_secret = platform_config.get("client_secret") or getattr(settings, "NOMBA_PLATFORM_TEST_CLIENT_SECRET", "")
         platform_live_active = False
 
-    byok = environment.nomba_integration_mode == "byok"
     if byok:
         account_id = environment.nomba_account_id or platform_account_id
         client_id = environment.nomba_client_id

@@ -306,6 +306,68 @@ def test_platform_managed_live_credentials_are_read_from_platform_admin_settings
     assert NombaClient(environment=env, credentials=creds).routing_account_id() == "platform-live-sub"
 
 
+def test_platform_managed_checkout_uses_selected_live_platform_mode(platform_admin_owner):
+    env = _environment("test", byok=False)
+    update_settings(
+        actor=platform_admin_owner,
+        nomba_platform={
+            "activeMode": "live",
+            "liveActive": True,
+            "test": {
+                "baseUrl": "https://sandbox.nomba.test",
+                "accountId": "platform-test-account",
+                "subAccountId": "platform-test-sub",
+                "clientId": "platform-test-client",
+                "clientSecret": "platform-test-secret",
+            },
+            "live": {
+                "baseUrl": "https://live.nomba.test",
+                "accountId": "platform-live-account",
+                "subAccountId": "platform-live-sub",
+                "clientId": "platform-live-client",
+                "clientSecret": "platform-live-secret",
+            },
+        },
+    )
+
+    creds = credentials_for_environment(env)
+
+    assert creds.mode == "live"
+    assert creds.base_url == "https://live.nomba.test"
+    assert creds.account_id == "platform-live-account"
+    assert creds.client_id == "platform-live-client"
+    assert creds.client_secret == "platform-live-secret"
+    assert creds.live_active is True
+    assert nomba_sub_account_id_for_environment(env) == "platform-live-sub"
+    assert nomba_routing_account_id_for_environment(env) == "platform-live-sub"
+    assert NombaClient(environment=env, credentials=creds).routing_account_id() == "platform-live-sub"
+
+
+def test_byok_ignores_selected_live_platform_mode(platform_admin_owner):
+    env = _environment("test", byok=True)
+    update_settings(
+        actor=platform_admin_owner,
+        nomba_platform={
+            "activeMode": "live",
+            "liveActive": True,
+            "live": {
+                "baseUrl": "https://live.nomba.test",
+                "accountId": "platform-live-account",
+                "clientId": "platform-live-client",
+                "clientSecret": "platform-live-secret",
+            },
+        },
+    )
+
+    creds = credentials_for_environment(env)
+
+    assert creds.mode == "test"
+    assert creds.base_url == "https://sandbox.nomba.com"
+    assert creds.account_id == "acct_123"
+    assert creds.client_id == "client_123"
+    assert creds.client_secret == "secret_123"
+
+
 @override_settings(
     NOMBA_PLATFORM_TEST_ACCOUNT_ID="platform-account",
     NOMBA_PLATFORM_TEST_CLIENT_ID="platform-client",

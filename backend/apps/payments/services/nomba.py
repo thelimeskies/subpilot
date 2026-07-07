@@ -69,15 +69,16 @@ def _configured_or_raise(environment) -> None:
 def _platform_sub_account_id(environment) -> str:
     if environment.nomba_integration_mode == "byok":
         return ""
+    mode = credentials_for_environment(environment).mode
     try:
         from apps.platform_admin.selectors.settings import get_platform_nomba_config
 
-        configured = get_platform_nomba_config(environment.mode).get("sub_account_id") or ""
+        configured = get_platform_nomba_config(mode).get("sub_account_id") or ""
         if configured:
             return str(configured)
     except Exception:
         pass
-    if environment.mode == "live":
+    if mode == "live":
         return getattr(settings, "NOMBA_PLATFORM_LIVE_SUB_ACCOUNT_ID", "") or ""
     return getattr(settings, "NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID", "") or ""
 
