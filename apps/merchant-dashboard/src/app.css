@@ -651,6 +651,21 @@ body {
 
 .mer-topbar__actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 
+.mer-environment-switch {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.mer-environment-switch .sp-segmented {
+  min-width: 112px;
+  background: #F6FBF8;
+}
+
+.mer-environment-switch .sp-segment {
+  min-width: 48px;
+}
+
 .mer-icon-btn {
   position: relative;
   display: grid; place-items: center;
@@ -2938,6 +2953,12 @@ a.mer-entity-cell:hover strong { color: var(--sp-color-teal-edge); }
 
 @media (max-width: 640px) {
   .mer-topbar { padding: 8px 12px; gap: 8px; }
+  .mer-environment-switch .sp-segmented { min-width: 96px; }
+  .mer-environment-switch .sp-segment {
+    min-width: 42px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
   .mer-profile__meta { display: none; }
   .mer-profile__trigger { padding: 3px; }
   .mer-bell__panel { width: calc(100vw - 24px); right: -8px; }

@@ -1,4 +1,7 @@
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "/api/v1";
+const ENVIRONMENT_STORAGE_KEY = "subpilot.environmentMode";
+
+export type EnvironmentMode = "test" | "live";
 
 export interface ApiError extends Error {
   status: number;
@@ -49,6 +52,16 @@ function readCsrfToken(): string | null {
   return readCookie("subpilot_csrf") ?? readCookie("csrftoken");
 }
 
+export function getActiveEnvironmentMode(): EnvironmentMode {
+  if (typeof window === "undefined") return "test";
+  return window.localStorage.getItem(ENVIRONMENT_STORAGE_KEY) === "live" ? "live" : "test";
+}
+
+export function setActiveEnvironmentMode(mode: EnvironmentMode): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ENVIRONMENT_STORAGE_KEY, mode);
+}
+
 function isUnsafeMethod(method: string): boolean {
   return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method.toUpperCase());
 }
@@ -70,6 +83,9 @@ async function request<T = unknown>(
   const { json, headers: rawHeaders, method = "GET", ...rest } = init;
   const headers = new Headers(rawHeaders ?? {});
   headers.set("Accept", "application/json");
+  if (!headers.has("X-Environment")) {
+    headers.set("X-Environment", getActiveEnvironmentMode());
+  }
 
   let body = init.body;
   if (json !== undefined) {

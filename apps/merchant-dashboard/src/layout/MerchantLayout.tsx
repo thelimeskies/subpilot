@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { SegmentedControl } from "@subpilot/ui";
 import {
   Activity,
   Boxes,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { usePermissions, type Capability } from "../auth/AuthContext";
+import { getActiveEnvironmentMode, setActiveEnvironmentMode, type EnvironmentMode } from "../api/client";
 import { GlobalSearch } from "../components/GlobalSearch";
 import { NotificationsBell } from "../components/NotificationsBell";
 
@@ -80,6 +82,7 @@ export function MerchantLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [environmentMode, setEnvironmentMode] = useState<EnvironmentMode>(() => getActiveEnvironmentMode());
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Filter the static nav definition through the user's capability set so
@@ -143,6 +146,14 @@ export function MerchantLayout() {
     signOut();
     setMenuOpen(false);
     navigate("/sign-in", { replace: true });
+  }
+
+  function handleEnvironmentChange(next: string) {
+    const mode = next === "live" ? "live" : "test";
+    if (mode === environmentMode) return;
+    setActiveEnvironmentMode(mode);
+    setEnvironmentMode(mode);
+    window.location.reload();
   }
 
   return (
@@ -239,6 +250,17 @@ export function MerchantLayout() {
           </button>
 
           <div className="mer-topbar__actions">
+            <div className="mer-environment-switch">
+              <SegmentedControl
+                label="Workspace environment"
+                value={environmentMode}
+                onChange={handleEnvironmentChange}
+                items={[
+                  { label: "Test", value: "test" },
+                  { label: "Live", value: "live" }
+                ]}
+              />
+            </div>
             <button type="button" className="mer-icon-btn" aria-label="Activity">
               <Activity size={18} aria-hidden="true" />
             </button>
