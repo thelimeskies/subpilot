@@ -22,13 +22,15 @@ function NombaCallbackScreen() {
   const orderId = params.get("orderId") ?? "";
   const portalToken = window.sessionStorage?.getItem("subpilot:lastPortalToken") ?? "";
   const invoiceId = window.sessionStorage?.getItem("subpilot:lastNombaCheckoutInvoiceId") ?? "";
+  const storedOrderReference = window.sessionStorage?.getItem("subpilot:lastNombaCheckoutOrderReference") ?? "";
+  const lookupOrderReference = storedOrderReference || orderReference;
   const portalHref = portalToken ? `/session/${portalToken}` : "";
   const client = useMemo(
     () => createSubPilotPortalClient({ publishableKey, apiBaseUrl }),
     []
   );
   const [confirmState, setConfirmState] = useState<"checking" | "confirmed" | "pending" | "failed">(
-    portalToken && (orderReference || orderId) ? "checking" : "pending"
+    portalToken && (lookupOrderReference || orderId) ? "checking" : "pending"
   );
   const [confirmMessage, setConfirmMessage] = useState(
     portalToken
@@ -37,7 +39,7 @@ function NombaCallbackScreen() {
   );
 
   useEffect(() => {
-    if (!portalToken || (!orderReference && !orderId)) return;
+    if (!portalToken || (!lookupOrderReference && !orderId)) return;
     let cancelled = false;
     let timeoutId: number | undefined;
     let attempt = 0;
@@ -46,13 +48,14 @@ function NombaCallbackScreen() {
       attempt += 1;
       try {
         const result = await client.confirmPaymentMethodCheckout(portalToken, {
-          orderReference,
+          orderReference: lookupOrderReference,
           orderId,
           invoiceId
         });
         if (cancelled) return;
         if (result.confirmed) {
           window.sessionStorage?.removeItem("subpilot:lastNombaCheckoutInvoiceId");
+          window.sessionStorage?.removeItem("subpilot:lastNombaCheckoutOrderReference");
           setConfirmState("confirmed");
           setConfirmMessage(
             result.paymentMethodAttached
@@ -88,7 +91,7 @@ function NombaCallbackScreen() {
       cancelled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [client, invoiceId, orderId, orderReference, portalToken]);
+  }, [client, invoiceId, lookupOrderReference, orderId, portalToken]);
 
   const title =
     confirmState === "confirmed"
@@ -102,9 +105,9 @@ function NombaCallbackScreen() {
       <section className="sp-portal-status" role="status">
         <strong>{title}</strong>
         <p>{confirmMessage}</p>
-        {orderReference || orderId ? (
+        {lookupOrderReference || orderId ? (
           <p>
-            Reference: <span>{orderReference || orderId}</span>
+            Reference: <span>{lookupOrderReference || orderId}</span>
           </p>
         ) : null}
         {portalHref ? (

@@ -232,6 +232,7 @@ class PortalPaymentMethodCheckoutView(_PortalView):
             {
                 "checkout_url": checkout_url,
                 "invoice_id": str(invoice.id),
+                "order_reference": str(data.get("orderReference") or ""),
                 "processor": "nomba",
             },
             status=status.HTTP_201_CREATED,

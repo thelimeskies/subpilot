@@ -177,6 +177,11 @@ export function SubPilotPortal({
       }
       window.sessionStorage?.setItem("subpilot:lastPortalToken", token);
       window.sessionStorage?.setItem("subpilot:lastNombaCheckoutInvoiceId", checkout.invoiceId);
+      if (checkout.orderReference) {
+        window.sessionStorage?.setItem("subpilot:lastNombaCheckoutOrderReference", checkout.orderReference);
+      } else {
+        window.sessionStorage?.removeItem("subpilot:lastNombaCheckoutOrderReference");
+      }
       window.location.assign(checkout.checkoutUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open Nomba checkout.");

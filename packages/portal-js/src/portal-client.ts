@@ -108,6 +108,7 @@ export interface PortalData {
 export interface PortalPaymentMethodCheckout {
   checkoutUrl: string;
   invoiceId: string;
+  orderReference: string;
   processor: "nomba";
 }
 
@@ -229,6 +230,7 @@ export function createSubPilotPortalClient(options: SubPilotPortalOptions): SubP
       const body = await portalRequest<{
         checkout_url: string;
         invoice_id: string;
+        order_reference?: string;
         processor: "nomba";
       }>(token, "/portal/payment-methods/checkout", {
         method: "POST",
@@ -237,6 +239,7 @@ export function createSubPilotPortalClient(options: SubPilotPortalOptions): SubP
       return {
         checkoutUrl: body.checkout_url,
         invoiceId: body.invoice_id,
+        orderReference: body.order_reference ?? "",
         processor: body.processor
       };
     },

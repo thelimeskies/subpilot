@@ -468,22 +468,31 @@ def confirm_nomba_tokenized_checkout(
 
 def _get_nomba_checkout_order(*, invoice: Invoice, order_reference: str) -> dict[str, Any]:
     client = get_nomba_client(invoice.environment)
-    references = [order_reference]
+    references = []
     metadata = invoice.metadata if isinstance(invoice.metadata, dict) else {}
     stored_reference = str(metadata.get("nomba_checkout_order_reference") or "")
     stable_reference = f"checkout-{invoice.id}"
-    for candidate in (stored_reference, stable_reference):
+    for candidate in (stored_reference, order_reference, stable_reference):
         if candidate and candidate not in references:
             references.append(candidate)
 
     last_error: NombaError | None = None
+    last_rejected: str = ""
     for reference in references:
         try:
-            return client.get_checkout_order(reference)
+            response = client.get_checkout_order(reference)
         except NombaError as exc:
             last_error = exc
+            continue
+        code = str(response.get("code") or "").strip()
+        if code and code != "00":
+            last_rejected = str(response.get("description") or response.get("message") or code)
+            continue
+        return response
     if last_error is not None:
         raise last_error
+    if last_rejected:
+        raise ServiceError(f"Nomba rejected all checkout references: {last_rejected}")
     raise ServiceError("No Nomba checkout reference is available for this invoice.")
 
 
