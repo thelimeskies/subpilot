@@ -17,7 +17,7 @@ from apps.customers.models import Customer, PaymentMethod
 from apps.invoices.models import Invoice, InvoiceLineItem
 from apps.invoices.services.create_invoice import create_invoice
 from apps.invoices.services.lifecycle import finalize_invoice
-from apps.payments.models import PaymentAttempt, ProcessorEvent
+from apps.payments.models import PaymentAttempt, ProcessorEvent, ProcessorWebhookReceipt
 from apps.subscriptions.models import Subscription, SubscriptionItem
 
 pytestmark = pytest.mark.django_db
@@ -188,6 +188,13 @@ def test_nomba_webhook_accepts_documented_signature():
     assert event.provider_event_id == payload["requestId"]
     assert event.event_type == "payment.succeeded"
     assert event.processor_reference == payload["data"]["transaction"]["transactionId"]
+    receipt = ProcessorWebhookReceipt.objects.get()
+    assert receipt.merchant == merchant
+    assert receipt.environment == environment
+    assert receipt.outcome == "accepted"
+    assert receipt.response_status_code == 200
+    assert receipt.response_body["received"] is True
+    assert receipt.provider_event_id == payload["requestId"]
 
 
 def test_nomba_webhook_get_probe_returns_ok_without_processing():
@@ -337,6 +344,37 @@ def test_central_nomba_webhook_get_probe_returns_ok_without_processing():
 
 
 @override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")
+def test_central_nomba_webhook_routes_single_platform_environment_without_metadata():
+    merchant, environment = _workspace()
+    payload = _payload()
+    payload["type"] = "wallet_topup"
+    payload["requestId"] = ""
+    payload["hookRequestId"] = "hook-forwarded-123"
+    payload["data"]["merchant"]["walletId"] = "forwarded-wallet"
+    payload["data"]["merchant"]["userId"] = "forwarded-user"
+    timestamp = "2025-09-29T10:51:44Z"
+    body = json.dumps(payload).encode()
+
+    response = APIClient().post(
+        "/api/v1/payments/webhooks/nomba/",
+        data=body,
+        content_type="application/json",
+        HTTP_NOMBA_SIGNATURE=_signature(
+            payload,
+            "platform_nomba_webhook_secret",
+            timestamp,
+        ),
+        HTTP_NOMBA_TIMESTAMP=timestamp,
+    )
+
+    assert response.status_code == 200, response.content
+    event = ProcessorEvent.objects.get()
+    assert event.merchant == merchant
+    assert event.environment == environment
+    assert event.provider_event_id == "hook-forwarded-123"
+
+
+@override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")
 def test_central_nomba_webhook_routes_by_order_metadata_invoice_id():
     merchant, environment, _customer, _subscription, invoice = _subscription_workspace()
     payload = _payload()
@@ -372,8 +410,11 @@ def test_central_nomba_webhook_routes_by_order_metadata_invoice_id():
 @override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")
 def test_central_nomba_webhook_rejects_unroutable_event():
     _workspace()
+    other_merchant = Merchant.objects.create(name="Other Webhook Co", slug="other-webhook-co")
+    Environment.objects.create(merchant=other_merchant, mode=Environment.Mode.TEST)
     payload = _payload()
     payload["data"]["merchant"]["walletId"] = "unknown-wallet"
+    payload["data"]["merchant"]["userId"] = "unknown-user"
     timestamp = "2025-09-29T10:51:44Z"
     body = json.dumps(payload).encode()
 
@@ -391,6 +432,12 @@ def test_central_nomba_webhook_rejects_unroutable_event():
 
     assert response.status_code == 404
     assert ProcessorEvent.objects.count() == 0
+    receipt = ProcessorWebhookReceipt.objects.get()
+    assert receipt.outcome == "rejected"
+    assert receipt.failure_reason == "unroutable"
+    assert receipt.response_status_code == 404
+    assert receipt.response_body == {"detail": "Unable to route webhook event."}
+    assert receipt.payload["requestId"] == payload["requestId"]
 
 
 def test_nomba_webhook_rejects_tampered_signature():
@@ -411,6 +458,13 @@ def test_nomba_webhook_rejects_tampered_signature():
 
     assert response.status_code == 401
     assert ProcessorEvent.objects.count() == 0
+    receipt = ProcessorWebhookReceipt.objects.get()
+    assert receipt.merchant == merchant
+    assert receipt.environment == environment
+    assert receipt.outcome == "rejected"
+    assert receipt.failure_reason == "invalid_signature"
+    assert receipt.response_status_code == 401
+    assert "raw_body" in receipt.payload
 
 
 def test_nomba_webhook_rejects_missing_timestamp():
@@ -428,3 +482,6 @@ def test_nomba_webhook_rejects_missing_timestamp():
 
     assert response.status_code == 401
     assert ProcessorEvent.objects.count() == 0
+    receipt = ProcessorWebhookReceipt.objects.get()
+    assert receipt.outcome == "rejected"
+    assert receipt.failure_reason == "invalid_signature"

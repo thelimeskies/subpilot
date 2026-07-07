@@ -477,6 +477,9 @@ class NombaClient:
     def fetch_checkout_flash_account(self, order_reference: str) -> dict[str, Any]:
         return self.request("GET", f"/v1/checkout/get-checkout-kta/{order_reference}")
 
+    def get_checkout_kta(self, order_reference: str) -> dict[str, Any]:
+        return self.fetch_checkout_flash_account(order_reference)
+
     def request_user_card_otp(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/checkout/user-card/auth", body=payload)
 
@@ -522,6 +525,9 @@ class NombaClient:
 
     def send_terminal_payment_request(self, terminal_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", f"/v1/terminals/payment-request/{terminal_id}", body=payload)
+
+    def terminal_payment_request(self, terminal_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.send_terminal_payment_request(terminal_id, payload)
 
     # Transactions
     def fetch_credit_debit_transactions(self, *, sub_account_id: str = "", **query: Any) -> dict[str, Any]:
@@ -601,18 +607,30 @@ class NombaClient:
     def debit_mandate(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/direct-debits/debit-mandate", body=payload)
 
+    def debit_direct_debit_mandate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.debit_mandate(payload)
+
     def get_mandate_status(self, mandate_id: str) -> dict[str, Any]:
         return self.request("GET", "/v1/direct-debits/status", query={"mandateId": mandate_id})
 
     def get_mandate(self, mandate_id: str) -> dict[str, Any]:
         return self.request("GET", f"/v1/direct-debits/{mandate_id}")
 
+    def get_direct_debit_mandate(self, mandate_id: str) -> dict[str, Any]:
+        return self.get_mandate(mandate_id)
+
     def create_mandate(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/direct-debits", body=payload)
+
+    def create_direct_debit_mandate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.create_mandate(payload)
 
     # Global payout / collections
     def authorize_global_transfer(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/global-payout/transfer/authorize", body=payload)
+
+    def global_payout_authorize_transfer(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.authorize_global_transfer(payload)
 
     def authorize_global_exchange(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/global-payout/exchange/authorize", body=payload)
@@ -620,8 +638,14 @@ class NombaClient:
     def convert_global_money(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/global-payout/money/convert", body=payload)
 
+    def global_payout_convert_money(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.convert_global_money(payload)
+
     def fetch_global_exchange_rates(self, **query: Any) -> dict[str, Any]:
         return self.request("GET", "/v1/global-payout/exchange-rates", query=query)
+
+    def global_payout_exchange_rates(self, **query: Any) -> dict[str, Any]:
+        return self.fetch_global_exchange_rates(**query)
 
     def fetch_global_payout_transaction(self, transaction_id: str) -> dict[str, Any]:
         return self.request("GET", f"/v1/global-payout/transactions/{transaction_id}")

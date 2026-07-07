@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from .models import BalanceTransaction, PaymentAttempt, ProcessorEvent
+from .models import BalanceTransaction, PaymentAttempt, ProcessorEvent, ProcessorWebhookReceipt
 
 
 @admin.register(PaymentAttempt)
@@ -44,3 +44,44 @@ class ProcessorEventAdmin(admin.ModelAdmin):
     autocomplete_fields = ("merchant", "environment")
     list_select_related = ("merchant", "environment")
     readonly_fields = ("id", "payload", "received_at", "created_at", "updated_at")
+
+
+@admin.register(ProcessorWebhookReceipt)
+class ProcessorWebhookReceiptAdmin(admin.ModelAdmin):
+    list_display = (
+        "provider",
+        "outcome",
+        "response_status_code",
+        "event_type",
+        "merchant",
+        "environment",
+        "provider_event_id",
+        "processor_reference",
+        "received_at",
+    )
+    list_filter = (
+        "provider",
+        "outcome",
+        "failure_reason",
+        "response_status_code",
+        "event_type",
+        "received_at",
+    )
+    search_fields = (
+        "provider_event_id",
+        "processor_reference",
+        "event_type",
+        "merchant__name",
+        "merchant__slug",
+        "path",
+    )
+    autocomplete_fields = ("merchant", "environment")
+    list_select_related = ("merchant", "environment")
+    readonly_fields = (
+        "id",
+        "payload",
+        "response_body",
+        "received_at",
+        "created_at",
+        "updated_at",
+    )

@@ -114,7 +114,19 @@ class NombaPaymentAdapter:
             if isinstance(data.get("tokenized_card_data"), dict)
             else {}
         )
-        provider_event_id = str(payload.get("requestId") or payload.get("request_id") or "")
+        provider_event_id = str(
+            payload.get("requestId")
+            or payload.get("request_id")
+            or payload.get("hookRequestId")
+            or payload.get("hooksRequestId")
+            or payload.get("eventId")
+            or data.get("requestId")
+            or data.get("request_id")
+            or data.get("hookRequestId")
+            or data.get("hooksRequestId")
+            or data.get("eventId")
+            or ""
+        )
         processor_reference = str(transaction.get("transactionId") or data.get("reference") or data.get("id") or "")
         order_reference = str(
             data.get("orderReference")
@@ -128,6 +140,7 @@ class NombaPaymentAdapter:
             "payment_success": "payment.succeeded",
             "payment_failed": "payment.failed",
             "payment_reversal": "charge.refunded",
+            "wallet_topup": "payment.succeeded",
             "payout_success": "payout.succeeded",
             "payout_failed": "payout.failed",
             "payout_refund": "payout.refunded",

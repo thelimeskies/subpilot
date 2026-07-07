@@ -462,26 +462,76 @@ def test_endpoint_wrappers_match_official_paths(monkeypatch):
     seen = []
 
     def fake_urlopen(req, timeout):
-        seen.append((req.get_method(), req.full_url))
+        seen.append((req.get_method(), req.full_url, dict(req.header_items())["Accountid"]))
         return _Response({"code": "00"})
 
     monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
     client = NombaClient(environment=env, credentials=credentials_for_environment(env))
 
     client.create_virtual_account({"accountRef": "ref", "accountName": "Example User"}, sub_account_id="sub_123")
+    client.filter_virtual_accounts({"accountRef": "ref"})
+    client.fetch_virtual_account("va_ref")
+    client.expire_virtual_account("va_ref")
+    client.fetch_sub_account_balance("sub_123")
+    client.fetch_account_transactions(sub_account_id="sub_123")
+    client.filter_account_transactions({"status": "SUCCESS"}, sub_account_id="sub_123")
+    client.requery_transaction("session_123")
+    client.create_checkout_order({"order": {"amount": "10.00", "currency": "NGN"}})
+    client.get_checkout_order("order_ref")
+    client.submit_card_details({"checkoutId": "checkout_id"})
+    client.submit_card_otp({"checkoutId": "checkout_id", "otp": "9999"})
+    client.get_checkout_kta("order_ref")
+    client.refund_checkout_transaction({"transactionId": "txn_123"})
     client.charge_tokenized_card({"tokenKey": "tok", "order": {"amount": "10.00"}})
+    client.list_tokenized_cards()
+    client.create_direct_debit_mandate({"merchantReference": "123"})
+    client.debit_direct_debit_mandate({"mandateId": "mandate_123", "amount": "100.00"})
+    client.get_direct_debit_mandate("mandate_123")
     client.bank_transfer({"merchantTxRef": "ref"}, sub_account_id="sub_123")
+    client.lookup_bank_account({"accountNumber": "0000000000", "bankCode": "035"})
+    client.fetch_banks()
     client.vend_airtime({"amount": 100}, sub_account_id="sub_123")
-    client.create_mandate({"mandateId": "m"})
-    client.fetch_drc_inflow_providers()
+    client.vend_data({"amount": 100}, sub_account_id="sub_123")
+    client.vend_electricity({"amount": 100}, sub_account_id="sub_123")
+    client.vend_cabletv({"amount": 100}, sub_account_id="sub_123")
+    client.global_payout_exchange_rates()
+    client.global_payout_convert_money({"amount": "10.00"})
+    client.global_payout_authorize_transfer({"amount": "10.00"})
+    client.wallet_transfer({"merchantTxRef": "ref"}, sub_account_id="sub_123")
+    client.terminal_payment_request("terminal_123", {"amount": "10.00"})
 
     assert seen == [
-        ("POST", "https://sandbox.nomba.com/v1/accounts/virtual/sub_123"),
-        ("POST", "https://sandbox.nomba.com/v1/checkout/tokenized-card-payment"),
-        ("POST", "https://sandbox.nomba.com/v2/transfers/bank/sub_123"),
-        ("POST", "https://sandbox.nomba.com/v1/bill/topup/sub_123"),
-        ("POST", "https://sandbox.nomba.com/v1/direct-debits"),
-        ("GET", "https://sandbox.nomba.com/v1/global-collection/drc/inflow/providers"),
+        ("POST", "https://sandbox.nomba.com/v1/accounts/virtual/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/accounts/virtual/list", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/accounts/virtual/va_ref", "acct_123"),
+        ("DELETE", "https://sandbox.nomba.com/v1/accounts/virtual/va_ref", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/accounts/sub_123/balance", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/transactions/accounts/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/transactions/accounts/sub_123", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/transactions/requery/session_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/checkout/order", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/checkout/order/order_ref", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/checkout/checkout-card-detail", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/checkout/checkout-card-otp", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/checkout/get-checkout-kta/order_ref", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/checkout/refund", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/checkout/tokenized-card-payment", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/checkout/tokenized-card-data", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/direct-debits", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/direct-debits/debit-mandate", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/direct-debits/mandate_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v2/transfers/bank/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/transfers/bank/lookup", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/transfers/banks", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/bill/topup/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/bill/data/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/bill/electricity/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/bill/cabletv/sub_123", "acct_123"),
+        ("GET", "https://sandbox.nomba.com/v1/global-payout/exchange-rates", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/global-payout/money/convert", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/global-payout/transfer/authorize", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v2/transfers/wallet/sub_123", "acct_123"),
+        ("POST", "https://sandbox.nomba.com/v1/terminals/payment-request/terminal_123", "acct_123"),
     ]
 
 

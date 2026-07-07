@@ -37,7 +37,7 @@ from apps.common.viewsets import TenantScopedViewSet
 from apps.invoices.models import CreditNote, Invoice
 
 from .adapters import get_adapter
-from .models import BalanceTransaction, PaymentAttempt
+from .models import BalanceTransaction, PaymentAttempt, ProcessorWebhookReceipt
 from .selectors import payment_attempts_for
 from .serializers import (
     ChargeInvoicePayloadSerializer,
@@ -51,6 +51,8 @@ from .services.ledger import record_refund_transaction
 from .services.nomba import refund_nomba_payment
 
 logger = logging.getLogger(__name__)
+
+_WEBHOOK_RAW_BODY_CAPTURE_LIMIT = 10_000
 
 
 def _processor_webhook_signature(request) -> str:
@@ -82,6 +84,63 @@ def _decode_webhook_json(raw_body: bytes) -> tuple[dict, Response | None]:
             status=status.HTTP_400_BAD_REQUEST,
         )
     return payload, None
+
+
+def _webhook_raw_payload(raw_body: bytes) -> dict:
+    text = raw_body.decode("utf-8", errors="replace")
+    if len(text) > _WEBHOOK_RAW_BODY_CAPTURE_LIMIT:
+        text = f"{text[:_WEBHOOK_RAW_BODY_CAPTURE_LIMIT]}...[truncated]"
+    return {"raw_body": text}
+
+
+def _webhook_response_body(response: Response) -> dict:
+    data = getattr(response, "data", None)
+    if isinstance(data, dict):
+        return data
+    if data is None:
+        return {}
+    return {"detail": str(data)}
+
+
+def _record_processor_webhook_receipt(
+    *,
+    request,
+    provider: str,
+    response: Response,
+    raw_body: bytes,
+    payload: dict | None = None,
+    parsed: dict | None = None,
+    merchant: Merchant | None = None,
+    environment: Environment | None = None,
+    mode: str = "",
+    outcome: str,
+    failure_reason: str = "",
+) -> Response:
+    parsed = parsed or {}
+    payload = payload if isinstance(payload, dict) else _webhook_raw_payload(raw_body)
+    try:
+        ProcessorWebhookReceipt.objects.create(
+            provider=provider,
+            merchant=merchant,
+            environment=environment,
+            mode=mode,
+            provider_event_id=str(parsed.get("provider_event_id") or "")[:128],
+            processor_reference=str(parsed.get("processor_reference") or "")[:128],
+            event_type=str(parsed.get("event_type") or "")[:64],
+            outcome=outcome[:32],
+            failure_reason=failure_reason[:128],
+            response_status_code=response.status_code,
+            response_body=_webhook_response_body(response),
+            payload=payload,
+            path=request.path[:512],
+            method=request.method[:12],
+        )
+    except Exception:
+        logger.exception(
+            "payments.processor_webhook_receipt_save_failed",
+            extra={"provider": provider, "outcome": outcome},
+        )
+    return response
 
 
 def _webhook_probe_response(*, provider: str, mode: str = "", merchant_id: str = "") -> Response:
@@ -123,11 +182,18 @@ def _central_nomba_identifiers(payload: dict) -> list[str]:
         merchant.get("wallet_id"),
         merchant.get("userId"),
         merchant.get("user_id"),
+        merchant.get("accountId"),
+        merchant.get("account_id"),
         data.get("walletId"),
         data.get("wallet_id"),
         data.get("merchantId"),
         data.get("merchant_id"),
+        data.get("accountId"),
+        data.get("account_id"),
+        data.get("subAccountId"),
+        data.get("sub_account_id"),
     ]
+    identifiers.extend(_recursive_nomba_identifiers(payload))
     seen = set()
     result = []
     for identifier in identifiers:
@@ -136,6 +202,35 @@ def _central_nomba_identifiers(payload: dict) -> list[str]:
             seen.add(identifier)
             result.append(identifier)
     return result
+
+
+def _recursive_nomba_identifiers(value) -> list[str]:
+    keys = {
+        "walletId",
+        "wallet_id",
+        "userId",
+        "user_id",
+        "merchantId",
+        "merchant_id",
+        "accountId",
+        "account_id",
+        "subAccountId",
+        "sub_account_id",
+        "businessId",
+        "business_id",
+    }
+    identifiers: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in keys:
+                identifiers.append(str(child or ""))
+            if isinstance(child, dict | list):
+                identifiers.extend(_recursive_nomba_identifiers(child))
+    elif isinstance(value, list):
+        for child in value:
+            if isinstance(child, dict | list):
+                identifiers.extend(_recursive_nomba_identifiers(child))
+    return identifiers
 
 
 def _environment_for_merchant_account(merchant: Merchant) -> Environment | None:
@@ -147,6 +242,36 @@ def _environment_for_merchant_account(merchant: Merchant) -> Environment | None:
         .order_by("created_at")
         .first()
     )
+
+
+def _platform_environment_for_identifier(identifier: str) -> Environment | None:
+    platform_map = {
+        getattr(settings, "NOMBA_PLATFORM_TEST_ACCOUNT_ID", ""): Environment.Mode.TEST,
+        getattr(settings, "NOMBA_PLATFORM_TEST_SUB_ACCOUNT_ID", ""): Environment.Mode.TEST,
+        getattr(settings, "NOMBA_PLATFORM_LIVE_ACCOUNT_ID", ""): Environment.Mode.LIVE,
+        getattr(settings, "NOMBA_PLATFORM_LIVE_SUB_ACCOUNT_ID", ""): Environment.Mode.LIVE,
+    }
+    mode = platform_map.get(identifier)
+    if not mode:
+        return None
+    return (
+        Environment.objects.select_related("merchant")
+        .filter(
+            mode=mode,
+            nomba_integration_mode=Environment.NombaIntegrationMode.PLATFORM,
+        )
+        .order_by("created_at")
+        .first()
+    )
+
+
+def _single_platform_nomba_environment() -> Environment | None:
+    environments = list(
+        Environment.objects.select_related("merchant")
+        .filter(nomba_integration_mode=Environment.NombaIntegrationMode.PLATFORM)
+        .order_by("-mode", "created_at")[:2]
+    )
+    return environments[0] if len(environments) == 1 else None
 
 
 def _resolve_central_nomba_environment(payload: dict, parsed: dict):
@@ -180,11 +305,20 @@ def _resolve_central_nomba_environment(payload: dict, parsed: dict):
         if environment is not None:
             return environment.merchant, environment
 
+        environment = _platform_environment_for_identifier(identifier)
+        if environment is not None:
+            return environment.merchant, environment
+
         merchant = Merchant.objects.filter(nomba_account_id=identifier).first()
         if merchant is not None:
             environment = _environment_for_merchant_account(merchant)
             if environment is not None:
                 return merchant, environment
+
+    if parsed.get("provider") == "nomba":
+        environment = _single_platform_nomba_environment()
+        if environment is not None:
+            return environment.merchant, environment
 
     return None, None
 
@@ -548,23 +682,82 @@ class ProcessorWebhookView(APIView):
                 "payments.webhook_signature_invalid",
                 extra={"provider": provider, "merchant_id": str(merchant.id)},
             )
-            return Response({"detail": "Invalid signature."}, status=status.HTTP_401_UNAUTHORIZED)
+            response = Response(
+                {"detail": "Invalid signature."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider=provider,
+                response=response,
+                raw_body=raw_body,
+                merchant=merchant,
+                environment=environment,
+                mode=mode,
+                outcome="rejected",
+                failure_reason="invalid_signature",
+            )
 
         payload, error = _decode_webhook_json(raw_body)
         if error is not None:
-            return error
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider=provider,
+                response=error,
+                raw_body=raw_body,
+                merchant=merchant,
+                environment=environment,
+                mode=mode,
+                outcome="rejected",
+                failure_reason="invalid_json",
+            )
 
         parsed = adapter.parse_webhook(payload=payload)
-        event = process_processor_event(
-            merchant=merchant,
-            environment=environment,
-            parsed=parsed,
-            request=request,
-        )
+        try:
+            event = process_processor_event(
+                merchant=merchant,
+                environment=environment,
+                parsed=parsed,
+                request=request,
+            )
+        except Exception:
+            logger.exception(
+                "payments.webhook_processing_failed",
+                extra={"provider": provider, "merchant_id": str(merchant.id)},
+            )
+            response = Response(
+                {"detail": "Webhook processing failed."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider=provider,
+                response=response,
+                raw_body=raw_body,
+                payload=payload,
+                parsed=parsed,
+                merchant=merchant,
+                environment=environment,
+                mode=mode,
+                outcome="failed",
+                failure_reason="processing_error",
+            )
         body = WebhookAckSerializer(
             {"received": True, "event_id": str(event.id)}
         ).data
-        return Response(body, status=status.HTTP_200_OK)
+        response = Response(body, status=status.HTTP_200_OK)
+        return _record_processor_webhook_receipt(
+            request=request,
+            provider=provider,
+            response=response,
+            raw_body=raw_body,
+            payload=payload,
+            parsed=parsed,
+            merchant=merchant,
+            environment=environment,
+            mode=mode,
+            outcome="accepted",
+        )
 
 
 class CentralNombaWebhookView(APIView):
@@ -595,9 +788,18 @@ class CentralNombaWebhookView(APIView):
 
         if not secret:
             logger.error("payments.central_nomba_webhook_secret_missing")
-            return Response(
+            response = Response(
                 {"detail": "Webhook endpoint is not configured."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider="nomba",
+                response=response,
+                raw_body=raw_body,
+                mode="platform",
+                outcome="rejected",
+                failure_reason="missing_secret",
             )
 
         if not adapter.verify_webhook(
@@ -607,11 +809,31 @@ class CentralNombaWebhookView(APIView):
             timestamp=timestamp,
         ):
             logger.warning("payments.central_nomba_webhook_signature_invalid")
-            return Response({"detail": "Invalid signature."}, status=status.HTTP_401_UNAUTHORIZED)
+            response = Response(
+                {"detail": "Invalid signature."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider="nomba",
+                response=response,
+                raw_body=raw_body,
+                mode="platform",
+                outcome="rejected",
+                failure_reason="invalid_signature",
+            )
 
         payload, error = _decode_webhook_json(raw_body)
         if error is not None:
-            return error
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider="nomba",
+                response=error,
+                raw_body=raw_body,
+                mode="platform",
+                outcome="rejected",
+                failure_reason="invalid_json",
+            )
 
         parsed = adapter.parse_webhook(payload=payload)
         merchant, environment = _resolve_central_nomba_environment(payload, parsed)
@@ -620,18 +842,64 @@ class CentralNombaWebhookView(APIView):
                 "payments.central_nomba_webhook_unroutable",
                 extra={"provider_event_id": parsed.get("provider_event_id") or ""},
             )
-            return Response(
+            response = Response(
                 {"detail": "Unable to route webhook event."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider="nomba",
+                response=response,
+                raw_body=raw_body,
+                payload=payload,
+                parsed=parsed,
+                mode="platform",
+                outcome="rejected",
+                failure_reason="unroutable",
+            )
 
-        event = process_processor_event(
-            merchant=merchant,
-            environment=environment,
-            parsed=parsed,
-            request=request,
-        )
+        try:
+            event = process_processor_event(
+                merchant=merchant,
+                environment=environment,
+                parsed=parsed,
+                request=request,
+            )
+        except Exception:
+            logger.exception(
+                "payments.central_nomba_webhook_processing_failed",
+                extra={"provider_event_id": parsed.get("provider_event_id") or ""},
+            )
+            response = Response(
+                {"detail": "Webhook processing failed."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            return _record_processor_webhook_receipt(
+                request=request,
+                provider="nomba",
+                response=response,
+                raw_body=raw_body,
+                payload=payload,
+                parsed=parsed,
+                merchant=merchant,
+                environment=environment,
+                mode="platform",
+                outcome="failed",
+                failure_reason="processing_error",
+            )
         body = WebhookAckSerializer(
             {"received": True, "event_id": str(event.id)}
         ).data
-        return Response(body, status=status.HTTP_200_OK)
+        response = Response(body, status=status.HTTP_200_OK)
+        return _record_processor_webhook_receipt(
+            request=request,
+            provider="nomba",
+            response=response,
+            raw_body=raw_body,
+            payload=payload,
+            parsed=parsed,
+            merchant=merchant,
+            environment=environment,
+            mode="platform",
+            outcome="accepted",
+        )

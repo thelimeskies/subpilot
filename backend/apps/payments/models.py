@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from apps.common.models import TenantDomainModel
+from apps.common.models import BaseDomainModel, TenantDomainModel
 
 
 class PaymentAttempt(TenantDomainModel):
@@ -148,5 +148,55 @@ class ProcessorEvent(TenantDomainModel):
             models.UniqueConstraint(
                 fields=["merchant", "environment", "provider", "provider_event_id"],
                 name="uniq_processorevent_scope_provider_id",
+            ),
+        ]
+
+
+class ProcessorWebhookReceipt(BaseDomainModel):
+    """Durable receipt for every inbound processor webhook attempt.
+
+    ``ProcessorEvent`` is tenant-scoped and only represents a routed, parsed
+    processor event. This receipt table intentionally permits null tenant scope
+    so rejected or unroutable payloads still remain inspectable.
+    """
+
+    provider = models.CharField(max_length=16, choices=ProcessorEvent.Provider.choices)
+    merchant = models.ForeignKey(
+        "accounts.Merchant",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    environment = models.ForeignKey(
+        "accounts.Environment",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    mode = models.CharField(max_length=32, blank=True, default="")
+    provider_event_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    processor_reference = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    event_type = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    outcome = models.CharField(max_length=32, db_index=True)
+    failure_reason = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    response_status_code = models.PositiveSmallIntegerField()
+    response_body = models.JSONField(default=dict, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    path = models.CharField(max_length=512, blank=True, default="")
+    method = models.CharField(max_length=12, blank=True, default="")
+    received_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "payments_processorwebhookreceipt"
+        indexes = [
+            models.Index(
+                fields=["provider", "outcome", "-received_at"],
+                name="pwr_provider_outcome_idx",
+            ),
+            models.Index(
+                fields=["merchant", "environment", "-received_at"],
+                name="pwr_scope_received_idx",
             ),
         ]
