@@ -1,3 +1,7 @@
+[![Watch the SubPilot end-to-end production demo](./subpilot-demo-thumbnail.jpg)](./subpilot-end-to-end-demo-20260707.mp4)
+
+[Watch or download the SubPilot end-to-end production demo video](./subpilot-end-to-end-demo-20260707.mp4)
+
 # SubPilot
 
 SubPilot is a subscription billing, recovery, and customer-portal workspace for merchants building on Nomba payment rails. Nomba owns payment primitives such as checkout, tokenized-card charges, and payment webhooks; SubPilot owns subscription state, invoices, retries, dunning, portal sessions, developer APIs, audit logs, and outbound webhooks.
