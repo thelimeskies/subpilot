@@ -153,7 +153,18 @@ USE_TZ = True
 # --- Static files ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_STORAGE_BACKEND = env(
+    "DJANGO_STATICFILES_STORAGE",
+    "whitenoise.storage.CompressedStaticFilesStorage",
+)
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": STATICFILES_STORAGE_BACKEND,
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

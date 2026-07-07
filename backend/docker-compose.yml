@@ -80,7 +80,7 @@ services:
   collectstatic:
     build: .
     user: root
-    command: sh -c "mkdir -p /app/staticfiles && chown -R app:app /app/staticfiles && su app -c 'python manage.py collectstatic --noinput'"
+    command: sh -c "mkdir -p /app/staticfiles && chown -R app:app /app/staticfiles && su app -c 'python manage.py collectstatic --clear --noinput'"
     environment: *backend-environment
     volumes:
       - .:/app
