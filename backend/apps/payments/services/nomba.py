@@ -13,12 +13,11 @@ from apps.common.exceptions import ServiceError
 from apps.customers.models import Customer, PaymentMethod
 from apps.invoices.models import Invoice
 from apps.payments.integrations.nomba.client import (
+    NombaClient,
     NombaError,
     credentials_for_environment,
-    NombaClient,
 )
 from apps.payments.models import PaymentAttempt
-
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +350,63 @@ def create_nomba_virtual_account(
     )
 
 
+def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = "") -> dict[str, Any]:
+    """Create the customer-present Nomba checkout that mints a tokenKey.
+
+    This is the CIT leg from the walkthrough: the customer enters card details
+    and completes OTP/3DS on Nomba's hosted page. Nomba later sends the tokenKey
+    through the payment_success webhook.
+    """
+    client = get_nomba_client(invoice.environment)
+    stable_key = idempotency_key or f"checkout:{invoice.id}"
+    order_reference = stable_key.replace(":", "-")
+    metadata = {
+        "invoice_id": str(invoice.id),
+        "customer_id": str(invoice.customer_id),
+        "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
+        "subpilot_idempotency_key": stable_key,
+    }
+    payload = {
+        "order": {
+            "orderReference": order_reference,
+            "customerId": str(invoice.customer_id),
+            "callbackUrl": getattr(settings, "NOMBA_CHECKOUT_CALLBACK_URL", ""),
+            "customerEmail": invoice.customer.email,
+            "amount": _major_units(invoice.amount_due_minor),
+            "currency": invoice.currency,
+            "accountId": nomba_routing_account_id_for_environment(invoice.environment),
+            "allowedPaymentMethods": ["Card"],
+            "orderMetaData": metadata,
+        },
+        "tokenizeCard": True,
+    }
+    response = client.create_checkout_order(payload)
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    checkout_url = str(data.get("checkoutLink") or "")
+    nomba_reference = str(data.get("orderReference") or order_reference)
+    invoice.hosted_payment_url = checkout_url
+    invoice.metadata = {
+        **(invoice.metadata or {}),
+        "nomba_checkout_order_reference": nomba_reference,
+        "nomba_tokenize_card": True,
+        "nomba_checkout_metadata": metadata,
+    }
+    invoice.save(update_fields=["hosted_payment_url", "metadata", "updated_at"])
+    log_event(
+        action="payments.nomba_tokenized_checkout_created",
+        merchant=invoice.merchant,
+        environment=invoice.environment,
+        target_type="invoice",
+        target_id=str(invoice.id),
+        metadata={
+            "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
+            "order_reference": nomba_reference,
+            "has_checkout_url": bool(checkout_url),
+        },
+    )
+    return response
+
+
 def charge_nomba_tokenized_card(*, invoice: Invoice, payment_method: PaymentMethod, idempotency_key: str) -> dict[str, Any]:
     client = get_nomba_client(invoice.environment)
     order_reference = idempotency_key.replace(":", "-")
@@ -359,7 +415,7 @@ def charge_nomba_tokenized_card(*, invoice: Invoice, payment_method: PaymentMeth
         "order": {
             "orderReference": order_reference,
             "customerId": str(invoice.customer_id),
-            "callbackUrl": "",
+            "callbackUrl": getattr(settings, "NOMBA_CHECKOUT_CALLBACK_URL", ""),
             "customerEmail": invoice.customer.email,
             "amount": _major_units(invoice.amount_due_minor),
             "currency": invoice.currency,
@@ -367,6 +423,7 @@ def charge_nomba_tokenized_card(*, invoice: Invoice, payment_method: PaymentMeth
             "orderMetaData": {
                 "invoice_id": str(invoice.id),
                 "customer_id": str(invoice.customer_id),
+                "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
                 "subpilot_idempotency_key": idempotency_key,
             },
         },

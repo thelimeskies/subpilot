@@ -21,6 +21,7 @@ from apps.platform_admin.feature_flags import get_flag
 from ..adapters import ChargeResult, get_adapter
 from ..models import PaymentAttempt
 from .ledger import record_charge_transaction
+from .nomba import charge_nomba_tokenized_card
 
 
 @dataclass
@@ -101,22 +102,28 @@ def charge_invoice(
     except Exception as exc:  # uniq violation -> someone else already started this
         raise ConflictError("A charge attempt is already in progress for this invoice.") from exc
 
-    adapter = get_adapter(adapter_name, environment=invoice.environment)
-
     try:
-        result = adapter.charge(
-            amount_minor=invoice.amount_due_minor,
-            currency=invoice.currency,
-            token=pm.token,
-            idempotency_key=idempotency_key,
-            metadata={
-                "invoice_id": str(invoice.id),
-                "customer_id": str(invoice.customer_id),
-                "_invoice": invoice,
-                "_payment_method": pm,
-                **(pm.metadata or {}),
-            },
-        )
+        if pm.provider == PaymentMethod.Provider.NOMBA:
+            result = _charge_nomba_payment_method(
+                invoice=invoice,
+                payment_method=pm,
+                idempotency_key=idempotency_key,
+            )
+        else:
+            adapter = get_adapter(adapter_name, environment=invoice.environment)
+            result = adapter.charge(
+                amount_minor=invoice.amount_due_minor,
+                currency=invoice.currency,
+                token=pm.token,
+                idempotency_key=idempotency_key,
+                metadata={
+                    "invoice_id": str(invoice.id),
+                    "customer_id": str(invoice.customer_id),
+                    "_invoice": invoice,
+                    "_payment_method": pm,
+                    **(pm.metadata or {}),
+                },
+            )
     except Exception as exc:
         attempt.status = PaymentAttempt.Status.FAILED
         attempt.failure_code = "processor_error"
@@ -219,6 +226,38 @@ def charge_invoice(
         _drive_dunning_after_failure(invoice=invoice, attempt=attempt, result=result, request=request)
 
     return ChargeOutcome(attempt=attempt, result=result)
+
+
+def _charge_nomba_payment_method(
+    *,
+    invoice: Invoice,
+    payment_method: PaymentMethod,
+    idempotency_key: str,
+) -> ChargeResult:
+    if not payment_method.token:
+        raise ServiceError("Nomba payment method has no tokenKey.")
+    payload = charge_nomba_tokenized_card(
+        invoice=invoice,
+        payment_method=payment_method,
+        idempotency_key=idempotency_key,
+    )
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    code = str(payload.get("code") or "")
+    ok = code == "00" or bool(data.get("status")) or str(data.get("message") or "").lower() == "success"
+    return ChargeResult(
+        success=ok,
+        processor_reference=str(
+            data.get("transactionId")
+            or data.get("paymentReference")
+            or data.get("paymentVendorReference")
+            or payload.get("requestId")
+            or payload.get("id")
+            or idempotency_key
+        ),
+        failure_code="" if ok else str(payload.get("code") or data.get("code") or "processor_error"),
+        failure_message="" if ok else str(payload.get("description") or data.get("message") or "Charge failed."),
+        raw=payload,
+    )
 
 
 def _drive_dunning_after_failure(*, invoice, attempt, result, request=None) -> None:

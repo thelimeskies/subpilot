@@ -17,8 +17,16 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.audit.services.log_event import log_event
+from apps.common.crypto import hash_secret
+from apps.customers.models import PaymentMethod
+from apps.customers.services.payment_methods import (
+    attach_payment_method,
+    set_default_payment_method,
+)
 from apps.invoices.models import Invoice
 from apps.invoices.services.lifecycle import mark_paid
+from apps.subscriptions.models import Subscription
+from apps.subscriptions.services.activate_subscription import activate_subscription
 
 from ..models import PaymentAttempt, ProcessorEvent
 from .ledger import record_charge_transaction
@@ -64,6 +72,13 @@ def process_processor_event(
     if not created and ev.processed_at is not None:
         # Already handled — return as-is, do not re-run side effects.
         return ev
+
+    _apply_tokenized_card_handoff(
+        merchant=merchant,
+        environment=environment,
+        parsed=parsed,
+        request=request,
+    )
 
     _route_event(
         merchant=merchant,
@@ -175,9 +190,85 @@ def _route_event(
     )
 
 
+def _apply_tokenized_card_handoff(
+    *,
+    merchant,
+    environment,
+    parsed: dict[str, Any],
+    request=None,
+) -> None:
+    token_key = str(parsed.get("token_key") or "").strip()
+    if not token_key:
+        return
+
+    invoice = _find_invoice_for_event(merchant, environment, parsed)
+    subscription = _find_subscription_for_event(merchant, environment, parsed, invoice=invoice)
+    customer = getattr(invoice, "customer", None) or getattr(subscription, "customer", None)
+    if customer is None:
+        return
+
+    fingerprint = hash_secret(f"nomba:{token_key}")
+    payment_method = PaymentMethod.objects.filter(
+        customer=customer,
+        provider=PaymentMethod.Provider.NOMBA,
+        fingerprint=fingerprint,
+    ).first()
+    if payment_method is None:
+        exp_month, exp_year = _parse_token_expiry(parsed.get("token_expiration_date") or "")
+        payment_method = attach_payment_method(
+            customer=customer,
+            provider=PaymentMethod.Provider.NOMBA,
+            token=token_key,
+            brand=str(parsed.get("card_type") or ""),
+            last4=_last4_from_pan(str(parsed.get("card_pan") or "")),
+            exp_month=exp_month,
+            exp_year=exp_year,
+            fingerprint=fingerprint,
+            set_default=True,
+            metadata={
+                "source": "nomba_webhook",
+                "provider_event_id": parsed.get("provider_event_id") or "",
+            },
+            request=request,
+        )
+    else:
+        set_default_payment_method(customer=customer, payment_method=payment_method, request=request)
+
+    if subscription is not None:
+        subscription.default_payment_method = payment_method
+        subscription.save(update_fields=["default_payment_method", "updated_at"])
+        if subscription.status in {
+            Subscription.Status.INCOMPLETE,
+            Subscription.Status.TRIALING,
+        }:
+            activate_subscription(subscription=subscription, request=request)
+
+
+def _find_subscription_for_event(
+    merchant,
+    environment,
+    parsed: dict[str, Any],
+    *,
+    invoice: Invoice | None = None,
+) -> Subscription | None:
+    if invoice is not None and invoice.subscription_id:
+        return invoice.subscription
+    metadata = _webhook_metadata(parsed)
+    subscription_id = metadata.get("subscription_id") if isinstance(metadata, dict) else None
+    if subscription_id:
+        try:
+            return Subscription.objects.get(
+                id=subscription_id,
+                merchant=merchant,
+                environment=environment,
+            )
+        except (Subscription.DoesNotExist, ValueError):
+            pass
+    return None
+
+
 def _find_invoice_for_event(merchant, environment, parsed: dict[str, Any]) -> Invoice | None:
-    raw = parsed.get("raw") or {}
-    metadata = raw.get("metadata") or raw.get("data", {}).get("metadata") or {}
+    metadata = _webhook_metadata(parsed)
     invoice_id = metadata.get("invoice_id") if isinstance(metadata, dict) else None
     qs = Invoice.objects.filter(merchant=merchant, environment=environment)
     if invoice_id:
@@ -199,6 +290,44 @@ def _find_invoice_for_event(merchant, environment, parsed: dict[str, Any]) -> In
         if attempt is not None:
             return attempt.invoice
     return None
+
+
+def _webhook_metadata(parsed: dict[str, Any]) -> dict:
+    raw = parsed.get("raw") or {}
+    data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+    transaction = data.get("transaction") if isinstance(data.get("transaction"), dict) else {}
+    for value in (
+        raw.get("metadata"),
+        raw.get("orderMetaData"),
+        data.get("metadata"),
+        data.get("orderMetaData"),
+        transaction.get("metadata"),
+        transaction.get("orderMetaData"),
+    ):
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _last4_from_pan(value: str) -> str:
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return digits[-4:]
+
+
+def _parse_token_expiry(value: str) -> tuple[int | None, int | None]:
+    if not value or "/" not in value:
+        return None, None
+    month_raw, year_raw = value.split("/", 1)
+    try:
+        month = int(month_raw)
+        year = int(year_raw)
+    except ValueError:
+        return None, None
+    if not 1 <= month <= 12:
+        month = None
+    if year and year < 100:
+        year += 2000
+    return month, year or None
 
 
 def _latest_pending_attempt(invoice: Invoice) -> PaymentAttempt | None:

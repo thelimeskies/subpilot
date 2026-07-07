@@ -17,9 +17,9 @@ from apps.customers.models import Customer, PaymentMethod
 from .models import Subscription
 from .selectors import events_for, subscriptions_for
 from .serializers import (
+    ActivateSubscriptionPayload,
     AddSubscriptionNotePayload,
     ApplySubscriptionCreditPayload,
-    ActivateSubscriptionPayload,
     CancelSubscriptionPayload,
     ChangePlanPayload,
     CreateSubscriptionPayload,
@@ -30,6 +30,7 @@ from .serializers import (
 )
 from .services.activate_subscription import activate_subscription
 from .services.change_plan import change_plan, preview_change
+from .services.checkout import start_subscription_tokenized_checkout
 from .services.create_subscription import create_subscription
 from .services.credits import apply_subscription_credit
 from .services.lifecycle import (
@@ -136,6 +137,24 @@ class SubscriptionViewSet(TenantScopedViewSet):
             request=request,
         )
         return Response(SubscriptionSerializer(sub).data)
+
+    @action(detail=True, methods=["post"], url_path="checkout")
+    def checkout(self, request, pk=None):
+        sub = self.get_object()
+        invoice, nomba_response = start_subscription_tokenized_checkout(
+            subscription=sub,
+            actor_user=request.user,
+            request=request,
+        )
+        return Response(
+            {
+                "subscription": SubscriptionSerializer(sub).data,
+                "invoice_id": str(invoice.id),
+                "checkout_url": invoice.hosted_payment_url,
+                "nomba": nomba_response,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"])
     def pause(self, request, pk=None):

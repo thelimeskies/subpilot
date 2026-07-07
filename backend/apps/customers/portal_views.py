@@ -11,14 +11,15 @@ Endpoints (all under /api/v1/portal/):
   GET  invoices             -> the customer's invoices
   GET  payment-methods      -> the customer's payment methods (no token)
   POST payment-methods      -> attach a new payment method
+  POST payment-methods/checkout -> start a hosted Nomba tokenizing checkout
   POST payment-methods/<id>/set-default
   POST invoices/<id>/pay    -> charge the (default) payment method
   POST subscriptions/<id>/cancel -> schedule or perform customer cancellation
 """
 from __future__ import annotations
 
-from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.permissions import BasePermission
@@ -26,19 +27,33 @@ from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.invoices.models import Invoice
-from apps.invoices.serializers import InvoiceSerializer
-from apps.invoices.services.delivery import build_invoice_pdf
-from apps.payments.services import charge_invoice as charge_invoice_service
-from apps.subscriptions.models import Subscription
-from apps.subscriptions.serializers import CancelSubscriptionPayload, ChangePlanPayload, SubscriptionSerializer
-from apps.subscriptions.services.change_plan import change_plan as change_plan_service, preview_change as preview_change_service
-from apps.subscriptions.services.create_subscription import create_subscription as create_subscription_service
-from apps.subscriptions.services.activate_subscription import activate_subscription as activate_subscription_service
-from apps.subscriptions.services.lifecycle import cancel_subscription as cancel_subscription_service
 from apps.catalog.models import Plan
 from apps.catalog.selectors import active_price_version
 from apps.common.exceptions import ServiceError
+from apps.invoices.models import Invoice
+from apps.invoices.serializers import InvoiceSerializer
+from apps.invoices.services.delivery import build_invoice_pdf
+from apps.payments.services import (
+    charge_invoice as charge_invoice_service,
+)
+from apps.payments.services import (
+    create_nomba_tokenized_checkout,
+)
+from apps.subscriptions.models import Subscription
+from apps.subscriptions.serializers import (
+    CancelSubscriptionPayload,
+    ChangePlanPayload,
+    SubscriptionSerializer,
+)
+from apps.subscriptions.services.activate_subscription import (
+    activate_subscription as activate_subscription_service,
+)
+from apps.subscriptions.services.change_plan import change_plan as change_plan_service
+from apps.subscriptions.services.change_plan import preview_change as preview_change_service
+from apps.subscriptions.services.create_subscription import (
+    create_subscription as create_subscription_service,
+)
+from apps.subscriptions.services.lifecycle import cancel_subscription as cancel_subscription_service
 
 from .models import Customer, PaymentMethod, PortalSession
 from .portal_auth import PortalSessionAuthentication
@@ -153,6 +168,11 @@ class PortalPaymentMethodsView(_PortalView):
         customer: Customer = request.portal_session.customer
         s = AttachPaymentMethodPayload(data=request.data)
         s.is_valid(raise_exception=True)
+        if s.validated_data["provider"] == PaymentMethod.Provider.NOMBA:
+            return Response(
+                {"reason": "Use the hosted Nomba checkout endpoint to attach Nomba cards."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         pm = attach_payment_method(
             customer=customer,
             provider=s.validated_data["provider"],
@@ -167,6 +187,51 @@ class PortalPaymentMethodsView(_PortalView):
             request=request,
         )
         return Response(PaymentMethodSerializer(pm).data, status=status.HTTP_201_CREATED)
+
+
+class PortalPaymentMethodCheckoutView(_PortalView):
+    portal_action = "update_payment_method"
+
+    @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
+    def post(self, request):
+        customer: Customer = request.portal_session.customer
+        invoice_id = (request.data or {}).get("invoice_id")
+        invoices = customer.invoices.filter(
+            status__in=[Invoice.Status.DRAFT, Invoice.Status.OPEN],
+            amount_due_minor__gt=0,
+        ).order_by("-created_at")
+        invoice = (
+            get_object_or_404(invoices, id=invoice_id)
+            if invoice_id
+            else invoices.first()
+        )
+        if invoice is None:
+            return Response(
+                {
+                    "reason": (
+                        "Nomba card tokenization starts from a hosted checkout payment. "
+                        "There is no payable invoice for this portal session."
+                    )
+                },
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        response = create_nomba_tokenized_checkout(invoice=invoice)
+        data = response.get("data") if isinstance(response.get("data"), dict) else {}
+        checkout_url = str(data.get("checkoutLink") or invoice.hosted_payment_url or "")
+        if not checkout_url:
+            return Response(
+                {"reason": "Nomba did not return a checkout URL."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(
+            {
+                "checkout_url": checkout_url,
+                "invoice_id": str(invoice.id),
+                "processor": "nomba",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PortalSetDefaultPaymentMethodView(_PortalView):

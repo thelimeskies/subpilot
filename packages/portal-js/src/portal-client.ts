@@ -105,6 +105,12 @@ export interface PortalData {
   allowedActions: string[];
 }
 
+export interface PortalPaymentMethodCheckout {
+  checkoutUrl: string;
+  invoiceId: string;
+  processor: "nomba";
+}
+
 interface BackendContext {
   customer: {
     id: string;
@@ -164,11 +170,7 @@ interface BackendContext {
 
 export interface SubPilotPortalClient {
   loadPortal(token: string): Promise<PortalData>;
-  attachPaymentMethod(
-    token: string,
-    customerId: string,
-    input: { brand: CardBrand; last4: string; expiry: string; setDefault?: boolean }
-  ): Promise<void>;
+  createPaymentMethodCheckout(token: string, invoiceId?: string): Promise<PortalPaymentMethodCheckout>;
   setDefaultPaymentMethod(token: string, methodId: string): Promise<void>;
   payInvoice(token: string, invoiceId: string): Promise<void>;
   cancelSubscription(token: string, subscriptionId: string): Promise<void>;
@@ -213,23 +215,20 @@ export function createSubPilotPortalClient(options: SubPilotPortalOptions): SubP
       const context = await portalRequest<BackendContext>(token, "/portal/context");
       return mapPortalContext(context);
     },
-    async attachPaymentMethod(token, customerId, input) {
-      const [monthRaw, yearRaw] = input.expiry.split("/");
-      const expMonth = Number(monthRaw);
-      const expYear = Number(yearRaw?.length === 2 ? `20${yearRaw}` : yearRaw);
-      await portalRequest(token, "/portal/payment-methods", {
+    async createPaymentMethodCheckout(token, invoiceId) {
+      const body = await portalRequest<{
+        checkout_url: string;
+        invoice_id: string;
+        processor: "nomba";
+      }>(token, "/portal/payment-methods/checkout", {
         method: "POST",
-        json: {
-          provider: "mock",
-          token: `tok_customer_portal_${customerId}_${input.last4}_${Date.now()}`,
-          brand: input.brand,
-          last4: input.last4,
-          exp_month: Number.isFinite(expMonth) ? expMonth : null,
-          exp_year: Number.isFinite(expYear) ? expYear : null,
-          set_default: input.setDefault ?? true,
-          metadata: { source: "subpilot_portal_js" }
-        }
+        json: invoiceId ? { invoice_id: invoiceId } : {}
       });
+      return {
+        checkoutUrl: body.checkout_url,
+        invoiceId: body.invoice_id,
+        processor: body.processor
+      };
     },
     async setDefaultPaymentMethod(token, methodId) {
       await portalRequest(token, `/portal/payment-methods/${methodId}/set-default`, {

@@ -73,8 +73,9 @@ def scan_due_subscriptions() -> dict:
 )
 def renew_subscription(*, subscription_id: str) -> dict:
     """Generate the next invoice for a single subscription. Idempotent."""
-    from apps.invoices.services.create_renewal_invoice import create_renewal_invoice
     from apps.common.exceptions import ConflictError
+    from apps.invoices.services.create_renewal_invoice import create_renewal_invoice
+    from apps.payments.services import charge_invoice
 
     with transaction.atomic():
         sub = (
@@ -89,7 +90,25 @@ def renew_subscription(*, subscription_id: str) -> dict:
         except ConflictError as e:
             logger.info("renew_subscription idempotent skip: %s", e)
             return {"skipped": "duplicate", "subscription_id": subscription_id}
-    return {"invoice_id": str(invoice.id), "number": invoice.number}
+    payment_method = sub.default_payment_method
+    if payment_method is not None and payment_method.token:
+        outcome = charge_invoice(
+            invoice=invoice,
+            payment_method=payment_method,
+        )
+        return {
+            "invoice_id": str(invoice.id),
+            "number": invoice.number,
+            "attempt_id": str(outcome.attempt.id),
+            "charged": True,
+            "success": outcome.result.success,
+        }
+    return {
+        "invoice_id": str(invoice.id),
+        "number": invoice.number,
+        "charged": False,
+        "skipped_charge": "missing_tokenized_payment_method",
+    }
 
 
 @shared_task(

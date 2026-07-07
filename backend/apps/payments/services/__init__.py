@@ -9,10 +9,10 @@ from .ledger import (
     record_credit_transaction,
     record_refund_transaction,
 )
-from .process_processor_event import process_processor_event
 from .nomba import (
     activate_nomba_environment,
     charge_nomba_tokenized_card,
+    create_nomba_tokenized_checkout,
     create_nomba_virtual_account,
     get_nomba_client,
     list_nomba_banks,
@@ -22,12 +22,14 @@ from .nomba import (
     validate_nomba_credentials,
     verify_nomba_transaction,
 )
+from .process_processor_event import process_processor_event
 
 __all__ = [
     "ChargeOutcome",
     "charge_invoice",
     "activate_nomba_environment",
     "charge_nomba_tokenized_card",
+    "create_nomba_tokenized_checkout",
     "create_nomba_virtual_account",
     "get_nomba_client",
     "list_nomba_banks",

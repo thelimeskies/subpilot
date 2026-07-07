@@ -23,7 +23,6 @@ from django.conf import settings
 from .base import ChargeResult
 from .nomba import NombaPaymentAdapter
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -157,6 +156,13 @@ class NombaSandboxAdapter:
         data = payload.get("data") or {}
         transaction = data.get("transaction") if isinstance(data, dict) else {}
         transaction = transaction if isinstance(transaction, dict) else {}
+        tokenized_card = (
+            data.get("tokenizedCardData")
+            if isinstance(data, dict) and isinstance(data.get("tokenizedCardData"), dict)
+            else data.get("tokenized_card_data")
+            if isinstance(data, dict) and isinstance(data.get("tokenized_card_data"), dict)
+            else {}
+        )
         provider_event_id = str(payload.get("requestId") or payload.get("request_id") or "")
         processor_reference = str(
             transaction.get("transactionId")
@@ -186,6 +192,10 @@ class NombaSandboxAdapter:
             "currency": data.get("currency", ""),
             "failure_code": str(data.get("failure_code") or ""),
             "failure_message": str(data.get("message") or ""),
+            "token_key": str(tokenized_card.get("tokenKey") or ""),
+            "card_type": str(tokenized_card.get("cardType") or ""),
+            "card_pan": str(tokenized_card.get("cardPan") or ""),
+            "token_expiration_date": str(tokenized_card.get("tokenExpirationDate") or ""),
             "raw": payload,
         }
 

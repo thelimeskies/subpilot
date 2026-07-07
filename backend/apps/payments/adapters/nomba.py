@@ -8,6 +8,8 @@ import json
 from decimal import Decimal
 from typing import Any
 
+from django.conf import settings
+
 from apps.payments.integrations.nomba.client import NombaClient, credentials_for_environment
 
 from .base import ChargeResult
@@ -48,7 +50,7 @@ class NombaPaymentAdapter:
                     "order": {
                         "orderReference": order_reference,
                         "customerId": str(invoice.customer_id),
-                        "callbackUrl": "",
+                        "callbackUrl": getattr(settings, "NOMBA_CHECKOUT_CALLBACK_URL", ""),
                         "customerEmail": invoice.customer.email,
                         "amount": f"{Decimal(invoice.amount_due_minor) / Decimal(100):.2f}",
                         "currency": invoice.currency,
@@ -56,6 +58,7 @@ class NombaPaymentAdapter:
                         "orderMetaData": {
                             "invoice_id": str(invoice.id),
                             "customer_id": str(invoice.customer_id),
+                            "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
                             "subpilot_idempotency_key": idempotency_key,
                         },
                     },
@@ -104,6 +107,13 @@ class NombaPaymentAdapter:
         raw_type = str(payload.get("event_type") or payload.get("event") or payload.get("type") or "unknown")
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         transaction = data.get("transaction") if isinstance(data.get("transaction"), dict) else {}
+        tokenized_card = (
+            data.get("tokenizedCardData")
+            if isinstance(data.get("tokenizedCardData"), dict)
+            else data.get("tokenized_card_data")
+            if isinstance(data.get("tokenized_card_data"), dict)
+            else {}
+        )
         provider_event_id = str(payload.get("requestId") or payload.get("request_id") or "")
         processor_reference = str(transaction.get("transactionId") or data.get("reference") or data.get("id") or "")
         amount = transaction.get("transactionAmount") or data.get("amount") or data.get("amount_minor")
@@ -124,6 +134,10 @@ class NombaPaymentAdapter:
             "currency": data.get("currency", ""),
             "failure_code": str(data.get("failure_code") or transaction.get("responseCode") or ""),
             "failure_message": str(data.get("message") or transaction.get("responseMessage") or ""),
+            "token_key": str(tokenized_card.get("tokenKey") or ""),
+            "card_type": str(tokenized_card.get("cardType") or ""),
+            "card_pan": str(tokenized_card.get("cardPan") or ""),
+            "token_expiration_date": str(tokenized_card.get("tokenExpirationDate") or ""),
             "raw": payload,
         }
 

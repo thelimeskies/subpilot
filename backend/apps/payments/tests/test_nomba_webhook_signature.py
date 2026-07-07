@@ -4,13 +4,21 @@ import base64
 import hashlib
 import hmac
 import json
+from datetime import timedelta
 
 import pytest
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Environment, Merchant
+from apps.catalog.models import Plan, PriceVersion, Product
+from apps.customers.models import Customer, PaymentMethod
+from apps.invoices.models import Invoice, InvoiceLineItem
+from apps.invoices.services.create_invoice import create_invoice
+from apps.invoices.services.lifecycle import finalize_invoice
 from apps.payments.models import ProcessorEvent
+from apps.subscriptions.models import Subscription, SubscriptionItem
 
 pytestmark = pytest.mark.django_db
 
@@ -79,8 +87,82 @@ def _workspace():
         nomba_account_id="6756ff80aafe04a795f18b38",
     )
     environment.webhook_secret = "test_nomba_webhook_secret"
-    environment.save(update_fields=["webhook_secret_encrypted", "updated_at"])
+    environment.nomba_access_token = "access-token"
+    environment.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    environment.save(
+        update_fields=[
+            "webhook_secret_encrypted",
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
     return merchant, environment
+
+
+def _subscription_workspace():
+    merchant, environment = _workspace()
+    customer = Customer.objects.create(
+        merchant=merchant,
+        environment=environment,
+        email="ada@example.test",
+        name="Ada Example",
+    )
+    product = Product.objects.create(
+        merchant=merchant,
+        environment=environment,
+        name="Membership",
+        status=Product.Status.ACTIVE,
+    )
+    plan = Plan.objects.create(
+        merchant=merchant,
+        environment=environment,
+        product=product,
+        name="Monthly",
+        status=Plan.Status.ACTIVE,
+    )
+    price = PriceVersion.objects.create(
+        plan=plan,
+        amount_minor=1000,
+        currency="NGN",
+        interval_unit=PriceVersion.IntervalUnit.MONTH,
+        interval_count=1,
+        active_from=timezone.now(),
+    )
+    subscription = Subscription.objects.create(
+        merchant=merchant,
+        environment=environment,
+        customer=customer,
+        plan=plan,
+        status=Subscription.Status.INCOMPLETE,
+    )
+    SubscriptionItem.objects.create(
+        subscription=subscription,
+        price_version=price,
+        quantity=1,
+    )
+    invoice = create_invoice(
+        merchant=merchant,
+        environment=environment,
+        customer=customer,
+        currency="NGN",
+        line_items=[
+            {
+                "type": InvoiceLineItem.Type.SUBSCRIPTION,
+                "description": "Initial subscription payment",
+                "amount_minor": 1000,
+                "quantity": 1,
+                "currency": "NGN",
+            }
+        ],
+        subscription=subscription,
+        metadata={
+            "initial_subscription_checkout": True,
+            "subscription_id": str(subscription.id),
+        },
+    )
+    invoice = finalize_invoice(invoice=invoice)
+    return merchant, environment, customer, subscription, invoice
 
 
 def test_nomba_webhook_accepts_documented_signature():
@@ -106,6 +188,44 @@ def test_nomba_webhook_accepts_documented_signature():
     assert event.provider_event_id == payload["requestId"]
     assert event.event_type == "payment.succeeded"
     assert event.processor_reference == payload["data"]["transaction"]["transactionId"]
+
+
+def test_nomba_success_webhook_attaches_token_and_activates_subscription():
+    merchant, environment, customer, subscription, invoice = _subscription_workspace()
+    payload = _payload()
+    payload["data"]["orderMetaData"] = {
+        "invoice_id": str(invoice.id),
+        "subscription_id": str(subscription.id),
+        "customer_id": str(customer.id),
+    }
+    payload["data"]["tokenizedCardData"] = {
+        "tokenKey": "tok_nomba_saved_card",
+        "cardType": "Visa",
+        "cardPan": "411111******4242",
+        "tokenExpirationDate": "12/30",
+    }
+    timestamp = "2025-09-29T10:51:44Z"
+    body = json.dumps(payload).encode()
+
+    response = APIClient().post(
+        f"/api/v1/payments/webhooks/nomba/{merchant.id}/{environment.mode}/",
+        data=body,
+        content_type="application/json",
+        HTTP_NOMBA_SIGNATURE=_signature(payload, environment.webhook_secret, timestamp),
+        HTTP_NOMBA_TIMESTAMP=timestamp,
+    )
+
+    assert response.status_code == 200
+    payment_method = PaymentMethod.objects.get(customer=customer)
+    assert payment_method.provider == PaymentMethod.Provider.NOMBA
+    assert payment_method.token == "tok_nomba_saved_card"
+    assert payment_method.is_default is True
+    assert payment_method.last4 == "4242"
+    subscription.refresh_from_db()
+    invoice.refresh_from_db()
+    assert subscription.status == Subscription.Status.ACTIVE
+    assert subscription.default_payment_method == payment_method
+    assert invoice.status == Invoice.Status.PAID
 
 
 @override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")

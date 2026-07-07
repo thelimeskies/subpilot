@@ -1,24 +1,14 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   createSubPilotPortalClient,
   formatCurrency,
   prettyStatus,
-  type CardBrand,
   type PortalChangePreview,
   type PortalData,
   type PortalInvoice,
   type PortalPlan,
   type SubPilotPortalOptions
 } from "./portal-client";
-
-interface CardForm {
-  brand: CardBrand;
-  name: string;
-  number: string;
-  expiry: string;
-  cvc: string;
-  setAsDefault: boolean;
-}
 
 export interface SubPilotPortalProps extends SubPilotPortalOptions {
   token: string;
@@ -53,8 +43,7 @@ export function SubPilotPortal({
   const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cardOpen, setCardOpen] = useState<CardForm | null>(null);
-  const [savingCard, setSavingCard] = useState(false);
+  const [checkoutTargetId, setCheckoutTargetId] = useState<string | null>(null);
   const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
@@ -169,50 +158,22 @@ export function SubPilotPortal({
     );
   }
 
-  function openCardForm() {
-    setCardOpen({
-      brand: "Visa",
-      name: customer?.name ?? "",
-      number: "",
-      expiry: "",
-      cvc: "",
-      setAsDefault: !defaultMethod
-    });
-  }
-
-  function patchCard(patch: Partial<CardForm>) {
-    setCardOpen((current) => (current ? { ...current, ...patch } : current));
-  }
-
-  function formatCardNumber(event: ChangeEvent<HTMLInputElement>) {
-    const digits = event.target.value.replace(/\D/g, "").slice(0, 19);
-    patchCard({ number: digits.replace(/(\d{4})(?=\d)/g, "$1 ") });
-  }
-
-  async function submitCard(event: FormEvent) {
-    event.preventDefault();
-    if (!cardOpen || !customer) return;
-    const digits = cardOpen.number.replace(/\D/g, "");
-    const last4 = digits.slice(-4);
-    if (digits.length < 12 || !/^\d{2}\/\d{2}$/.test(cardOpen.expiry) || cardOpen.cvc.length < 3) {
-      setError("Enter a valid card number, expiry in MM/YY format, and CVC.");
-      return;
-    }
-    setSavingCard(true);
+  async function handlePaymentMethodCheckout(invoiceId?: string) {
+    const targetId = invoiceId ?? "payment-method";
+    if (checkoutTargetId) return;
+    setCheckoutTargetId(targetId);
     setError(null);
     try {
-      await client.attachPaymentMethod(token, customer.id, {
-        brand: cardOpen.brand,
-        last4,
-        expiry: cardOpen.expiry,
-        setDefault: cardOpen.setAsDefault
-      });
-      setCardOpen(null);
-      await load();
+      const checkout = await client.createPaymentMethodCheckout(token, invoiceId);
+      if (!checkout.checkoutUrl) {
+        throw new Error("Nomba did not return a checkout URL.");
+      }
+      window.location.assign(checkout.checkoutUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save this payment method.");
+      setError(err instanceof Error ? err.message : "Could not open Nomba checkout.");
+      setCheckoutTargetId(null);
     } finally {
-      setSavingCard(false);
+      setCheckoutTargetId(null);
     }
   }
 
@@ -231,6 +192,10 @@ export function SubPilotPortal({
   }
 
   async function handlePayInvoice(invoice: PortalInvoice) {
+    if (!defaultMethod && canUpdateCard) {
+      await handlePaymentMethodCheckout(invoice.id);
+      return;
+    }
     setPayingInvoiceId(invoice.id);
     setError(null);
     try {
@@ -413,8 +378,13 @@ export function SubPilotPortal({
                   <span>{formatCurrency(invoice.amountDue - invoice.amountPaid, invoice.currency)}</span>
                   <span className={`sp-portal-badge sp-portal-badge--${badgeTone(invoice.status)}`}>{prettyStatus(invoice.status)}</span>
                   {canPay ? (
-                    <button className="sp-portal-button" type="button" onClick={() => void handlePayInvoice(invoice)} disabled={payingInvoiceId === invoice.id}>
-                      {payingInvoiceId === invoice.id ? "Paying..." : "Pay"}
+                    <button
+                      className="sp-portal-button"
+                      type="button"
+                      onClick={() => void handlePayInvoice(invoice)}
+                      disabled={payingInvoiceId === invoice.id || checkoutTargetId === invoice.id}
+                    >
+                      {payingInvoiceId === invoice.id || checkoutTargetId === invoice.id ? "Opening..." : "Pay"}
                     </button>
                   ) : null}
                 </article>
@@ -461,8 +431,13 @@ export function SubPilotPortal({
             <p className="sp-portal-empty">No payment methods on file.</p>
           )}
           {canUpdateCard ? (
-            <button className="sp-portal-button sp-portal-button--secondary" type="button" onClick={openCardForm}>
-              Add card
+            <button
+              className="sp-portal-button sp-portal-button--secondary"
+              type="button"
+              onClick={() => void handlePaymentMethodCheckout()}
+              disabled={checkoutTargetId === "payment-method"}
+            >
+              {checkoutTargetId === "payment-method" ? "Opening..." : "Open Nomba checkout"}
             </button>
           ) : null}
         </section>
@@ -542,64 +517,6 @@ export function SubPilotPortal({
           )}
         </section>
       </div>
-
-      {cardOpen ? (
-        <div className="sp-portal-modal" role="dialog" aria-modal="true" aria-labelledby="sp-portal-card-title">
-          <div className="sp-portal-modal__panel">
-            <div className="sp-portal-modal__head">
-              <div>
-                <h2 id="sp-portal-card-title">Add a card</h2>
-                <p>Your card is tokenized before it is attached to this subscription.</p>
-              </div>
-              <button className="sp-portal-button sp-portal-button--ghost" type="button" onClick={() => setCardOpen(null)}>
-                Close
-              </button>
-            </div>
-            <form className="sp-portal-form" onSubmit={submitCard}>
-              <label>
-                <span>Cardholder name</span>
-                <input value={cardOpen.name} onChange={(e) => patchCard({ name: e.target.value })} />
-              </label>
-              <label>
-                <span>Card brand</span>
-                <select value={cardOpen.brand} onChange={(e) => patchCard({ brand: e.target.value as CardBrand })}>
-                  <option value="Visa">Visa</option>
-                  <option value="Mastercard">Mastercard</option>
-                  <option value="Verve">Verve</option>
-                  <option value="Amex">Amex</option>
-                </select>
-              </label>
-              <label>
-                <span>Card number</span>
-                <input value={cardOpen.number} onChange={formatCardNumber} placeholder="4242 4242 4242 4242" maxLength={23} inputMode="numeric" />
-              </label>
-              <div className="sp-portal-form__row">
-                <label>
-                  <span>Expiry</span>
-                  <input value={cardOpen.expiry} onChange={(e) => patchCard({ expiry: e.target.value })} placeholder="04/28" maxLength={5} />
-                </label>
-                <label>
-                  <span>CVC</span>
-                  <input value={cardOpen.cvc} onChange={(e) => patchCard({ cvc: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="123" maxLength={4} inputMode="numeric" />
-                </label>
-              </div>
-              <label className="sp-portal-form__check">
-                <input
-                  type="checkbox"
-                  checked={cardOpen.setAsDefault}
-                  onChange={(e) => patchCard({ setAsDefault: e.target.checked })}
-                  disabled={!defaultMethod}
-                />
-                <span>Set as default payment method</span>
-              </label>
-              <div className="sp-portal-modal__foot">
-                <button className="sp-portal-button sp-portal-button--ghost" type="button" onClick={() => setCardOpen(null)}>Cancel</button>
-                <button className="sp-portal-button" type="submit" disabled={savingCard}>{savingCard ? "Saving..." : "Save card"}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
 
       {planModalOpen ? (
         <div className="sp-portal-modal" role="dialog" aria-modal="true" aria-labelledby="sp-portal-plan-title">
