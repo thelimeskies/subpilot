@@ -84,6 +84,7 @@ export function MerchantDetailPage() {
     refundPayment,
     retryWebhook,
     runKycReview,
+    updateKycReview,
   } = useMerchantDetail(merchantId);
   const [tab, setTab] = useState<TabKey>("overview");
   const { notify, confirm } = useFeedback();
@@ -128,6 +129,8 @@ export function MerchantDetailPage() {
   // KYC re-run modal
   const [kycLevel, setKycLevel] = useState<string>("Tier 2");
   const [kycReviewer, setKycReviewer] = useState<string>("Ada Okafor");
+  const [kycNotes, setKycNotes] = useState<string>("");
+  const [kycFlags, setKycFlags] = useState<string>("");
   const [kycSubmitting, setKycSubmitting] = useState(false);
 
   // Webhook secret rotation modal
@@ -173,8 +176,10 @@ export function MerchantDetailPage() {
     if (kycOpen) {
       setKycLevel(detail?.kyc?.level ?? "Tier 2");
       setKycReviewer(detail?.kyc?.reviewer ?? "Ada Okafor");
+      setKycNotes(detail?.kyc?.notes ?? "");
+      setKycFlags((detail?.kyc?.flags ?? []).join(", "));
     }
-  }, [kycOpen, detail?.kyc?.level, detail?.kyc?.reviewer]);
+  }, [kycOpen, detail?.kyc?.flags, detail?.kyc?.level, detail?.kyc?.notes, detail?.kyc?.reviewer]);
 
   // Sync edit form when sheet opens or config changes.
   useEffect(() => {
@@ -230,6 +235,55 @@ export function MerchantDetailPage() {
       return;
     }
     setDocumentPreview(document);
+  }
+
+  async function handleKycDecision(
+    status: "Verified" | "Rejected" | "Action needed",
+    {
+      noteFallback,
+      documentStatus,
+      successTitle,
+      successDescription
+    }: {
+      noteFallback: string;
+      documentStatus: "Approved" | "Rejected" | "Pending";
+      successTitle: string;
+      successDescription: string;
+    }
+  ) {
+    if (kycSubmitting) return;
+    setKycSubmitting(true);
+    try {
+      const flags = kycFlags
+        .split(",")
+        .map((flag) => flag.trim())
+        .filter(Boolean);
+      const nextDocuments = (kyc?.documents ?? []).map((document) => ({
+        ...document,
+        status: documentStatus
+      }));
+      await updateKycReview({
+        status,
+        level: kycLevel,
+        notes: kycNotes.trim() || noteFallback,
+        flags: status === "Verified" ? [] : flags,
+        documents: nextDocuments
+      });
+      setKycOpen(false);
+      notify({
+        tone: status === "Verified" ? "success" : status === "Rejected" ? "danger" : "warning",
+        title: successTitle,
+        description: successDescription
+      });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Could not update KYC",
+        description: err instanceof Error ? err.message : "KYC review update failed."
+      });
+    } finally {
+      setKycSubmitting(false);
+    }
   }
 
   return (
@@ -888,18 +942,51 @@ export function MerchantDetailPage() {
 
       <Modal
         open={kycOpen}
-        title="Re-run KYC review"
-        description="Triggers a fresh BVN + sanctions check and reopens the documentation queue."
+        title="KYC review"
+        description="Approve, reject, request changes, or reopen the document review queue."
         onClose={() => setKycOpen(false)}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setKycOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setKycOpen(false)} disabled={kycSubmitting}>Cancel</Button>
+            <Button
+              variant="ghost"
+              disabled={kycSubmitting}
+              onClick={() =>
+                handleKycDecision("Action needed", {
+                  noteFallback: "Changes requested after KYC review.",
+                  documentStatus: "Pending",
+                  successTitle: "Changes requested",
+                  successDescription: `${merchant.name} will remain in action-needed status.`
+                })
+              }
+              icon={<ShieldAlert size={14} />}
+            >
+              Request changes
+            </Button>
+            <Button
+              variant="danger"
+              disabled={kycSubmitting}
+              onClick={() =>
+                handleKycDecision("Rejected", {
+                  noteFallback: "Rejected after KYC review.",
+                  documentStatus: "Rejected",
+                  successTitle: "KYC rejected",
+                  successDescription: `${merchant.name} has been marked rejected.`
+                })
+              }
+              icon={<ShieldAlert size={14} />}
+            >
+              Reject
+            </Button>
             <Button
               disabled={kycSubmitting}
               onClick={async () => {
                 setKycSubmitting(true);
                 try {
-                  await runKycReview({ level: kycLevel, notes: `Review re-run; assignee: ${kycReviewer}.` });
+                  const notes = kycNotes.trim()
+                    ? `${kycNotes.trim()}\n\nReview re-run; assignee: ${kycReviewer}.`
+                    : `Review re-run; assignee: ${kycReviewer}.`;
+                  await runKycReview({ level: kycLevel, notes });
                   setKycOpen(false);
                   notify({ tone: "info", title: "KYC review re-opened", description: `BVN + sanctions check queued for ${merchant.name}.` });
                 } catch (err) {
@@ -911,6 +998,20 @@ export function MerchantDetailPage() {
               icon={<ShieldCheck size={14} />}
             >
               {kycSubmitting ? "Running…" : "Run review"}
+            </Button>
+            <Button
+              disabled={kycSubmitting}
+              onClick={() =>
+                handleKycDecision("Verified", {
+                  noteFallback: "Approved after KYC document review.",
+                  documentStatus: "Approved",
+                  successTitle: "KYC approved",
+                  successDescription: `${merchant.name} is now verified.`
+                })
+              }
+              icon={<ShieldCheck size={14} />}
+            >
+              {kycSubmitting ? "Saving…" : "Approve"}
             </Button>
           </>
         }
@@ -931,7 +1032,23 @@ export function MerchantDetailPage() {
             </SelectInput>
           </Field>
         </div>
-        <Field label="Documents to re-collect">
+        <Field label="Reviewer notes">
+          <textarea
+            className="sp-input"
+            rows={4}
+            value={kycNotes}
+            onChange={(event) => setKycNotes(event.target.value)}
+            placeholder="Summarize the review decision, evidence, or next action."
+          />
+        </Field>
+        <Field label="Compliance flags" hint="Comma-separated. Cleared automatically when approving.">
+          <TextInput
+            value={kycFlags}
+            onChange={(event) => setKycFlags(event.target.value)}
+            placeholder="e.g. address mismatch, document unclear"
+          />
+        </Field>
+        <Field label="Documents to re-collect when re-running">
           <div className="adm-checklist">
             <label><input type="checkbox" defaultChecked /> Director ID</label>
             <label><input type="checkbox" /> Bank statement</label>

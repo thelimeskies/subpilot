@@ -122,6 +122,13 @@ export interface UseMerchantDetailResult {
   refundPayment: (input: { paymentId: string; reason?: string; note?: string }) => Promise<{ id: string; status: string }>;
   retryWebhook: (input: { deliveryId: string }) => Promise<{ id: string; status: string }>;
   runKycReview: (input?: { level?: string; notes?: string }) => Promise<void>;
+  updateKycReview: (input: {
+    status: "Verified" | "In review" | "Rejected" | "Action needed";
+    level?: string;
+    notes?: string;
+    flags?: string[];
+    documents?: MerchantDetailKyc["documents"];
+  }) => Promise<void>;
   updateConfig: (input: {
     featureFlags?: Record<string, boolean>;
     limits?: Record<string, unknown>;
@@ -296,6 +303,30 @@ export function useMerchantDetail(merchantId: string | undefined): UseMerchantDe
     [merchantId, reload]
   );
 
+  const updateKycReview = useCallback(
+    async (input: {
+      status: "Verified" | "In review" | "Rejected" | "Action needed";
+      level?: string;
+      notes?: string;
+      flags?: string[];
+      documents?: MerchantDetailKyc["documents"];
+    }) => {
+      if (!merchantId) return;
+      const payload: Record<string, unknown> = { status: input.status };
+      if (input.level) payload.level = input.level;
+      if (input.notes !== undefined) payload.notes = input.notes;
+      if (input.flags !== undefined) payload.flags = input.flags;
+      if (input.documents !== undefined) payload.documents = input.documents;
+      const body = await api.patch<{ ok: boolean; reason?: string }>(
+        `/platform/kyc/${merchantId}`,
+        payload,
+      );
+      if (!body.ok) throw new Error(body.reason || "Could not update KYC review.");
+      await reload();
+    },
+    [merchantId, reload]
+  );
+
   const updateConfig = useCallback(
     async (input: {
       featureFlags?: Record<string, boolean>;
@@ -332,6 +363,7 @@ export function useMerchantDetail(merchantId: string | undefined): UseMerchantDe
     refundPayment,
     retryWebhook,
     runKycReview,
+    updateKycReview,
     updateConfig,
   };
 }
