@@ -132,6 +132,49 @@ def test_authorized_request_refreshes_once_on_401(monkeypatch):
     assert calls[2][2]["Authorization"] == "Bearer new-access"
 
 
+def test_expired_token_refresh_does_not_recurse_before_checkout(monkeypatch):
+    env = _environment()
+    env.nomba_access_token = "expired-access"
+    env.nomba_refresh_token = "refresh-token"
+    env.nomba_token_expires_at = timezone.now() - timedelta(minutes=1)
+    env.save(
+        update_fields=[
+            "nomba_access_token_encrypted",
+            "nomba_refresh_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+    calls = []
+
+    def fake_urlopen(req, timeout):
+        calls.append((req.get_method(), req.full_url, dict(req.header_items()), req.data))
+        if req.full_url.endswith("/v1/auth/token/refresh"):
+            return _Response(
+                {
+                    "code": "00",
+                    "data": {
+                        "access_token": "new-access",
+                        "refresh_token": "new-refresh",
+                        "expiresIn": 1800,
+                    },
+                }
+            )
+        return _Response({"code": "00", "data": {"checkoutLink": "https://checkout.test/pay"}})
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+    payload = client.create_checkout_order({"order": {"orderReference": "checkout-ref"}})
+
+    assert payload["data"]["checkoutLink"] == "https://checkout.test/pay"
+    assert len(calls) == 2
+    assert calls[0][1].endswith("/v1/auth/token/refresh")
+    assert "Authorization" not in calls[0][2]
+    assert calls[1][1].endswith("/v1/checkout/order")
+    assert calls[1][2]["Authorization"] == "Bearer new-access"
+
+
 def test_live_calls_require_explicit_activation():
     env = _environment("live")
     env.nomba_access_token = "live-token"

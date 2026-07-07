@@ -8,17 +8,14 @@ from __future__ import annotations
 
 import json
 import logging
-import socket
 from dataclasses import dataclass
-from datetime import timezone as datetime_timezone
-from datetime import timedelta
+from datetime import UTC, timedelta
 from typing import Any
 from urllib import error, parse, request
 
 from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +126,7 @@ class NombaClient:
             "POST",
             "/v1/auth/token/refresh",
             body={"grant_type": "refresh_token", "refresh_token": refresh_token},
-            authorized=True,
+            authorized=False,
             enforce_live_activation=False,
             refresh_on_401=False,
         )
@@ -224,7 +221,7 @@ class NombaClient:
             payload = self._decode_response(exc.read())
             self._log_response(method=method, url=url, status_code=exc.code, payload=payload, failed=True)
             raise self._error_for_status(exc.code, payload) from exc
-        except (error.URLError, TimeoutError, socket.timeout) as exc:
+        except (error.URLError, TimeoutError) as exc:
             self._log_transport_error(method=method, url=url, exc=exc)
             raise NombaTimeoutError(str(exc), status_code=0, payload={"exception": exc.__class__.__name__}) from exc
 
@@ -364,7 +361,7 @@ class NombaClient:
         expires_raw = str(data.get("expiresAt") or "")
         expires_at = parse_datetime(expires_raw) if expires_raw else None
         if expires_at is not None and timezone.is_naive(expires_at):
-            expires_at = timezone.make_aware(expires_at, datetime_timezone.utc)
+            expires_at = timezone.make_aware(expires_at, UTC)
         if expires_at is None and (data.get("expiresIn") or data.get("expires_in")):
             try:
                 expires_at = timezone.now() + timedelta(
