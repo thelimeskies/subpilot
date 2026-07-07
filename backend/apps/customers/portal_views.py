@@ -209,8 +209,8 @@ class PortalPaymentMethodCheckoutView(_PortalView):
             return Response(
                 {
                     "reason": (
-                        "Nomba card tokenization starts from a hosted checkout payment. "
-                        "There is no payable invoice for this portal session."
+                        "Card checkout is only available when an invoice is due. "
+                        "No payment method checkout was created."
                     )
                 },
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,

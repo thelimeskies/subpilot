@@ -88,6 +88,10 @@ export function SubPilotPortal({
     () => (data?.invoices ?? []).filter((invoice) => invoice.status === "open" || invoice.status === "past_due"),
     [data?.invoices]
   );
+  const payableInvoices = useMemo(
+    () => openInvoices.filter((invoice) => invoice.amountDue - invoice.amountPaid > 0),
+    [openInvoices]
+  );
   const paidInvoices = useMemo(
     () => (data?.invoices ?? []).filter((invoice) => invoice.status === "paid").slice(0, 8),
     [data?.invoices]
@@ -103,6 +107,9 @@ export function SubPilotPortal({
   }, [data?.paymentMethods, defaultMethod]);
   const canPay = data?.allowedActions.includes("pay_invoice") ?? false;
   const canUpdateCard = data?.allowedActions.includes("update_payment_method") ?? false;
+  const canStartPaymentMethodCheckout = canUpdateCard && payableInvoices.length > 0;
+  const paymentMethodCheckoutInvoice = payableInvoices[0] ?? null;
+  const paymentMethodCheckoutTargetId = paymentMethodCheckoutInvoice?.id ?? "payment-method";
   const canCancel = Boolean(data?.allowedActions.includes("cancel_subscription") && merchant?.allowCancel);
   const canChangePlan = Boolean(
     data?.allowedActions.includes("change_plan") &&
@@ -430,15 +437,17 @@ export function SubPilotPortal({
           ) : (
             <p className="sp-portal-empty">No payment methods on file.</p>
           )}
-          {canUpdateCard ? (
+          {canStartPaymentMethodCheckout ? (
             <button
               className="sp-portal-button sp-portal-button--secondary"
               type="button"
-              onClick={() => void handlePaymentMethodCheckout()}
-              disabled={checkoutTargetId === "payment-method"}
+              onClick={() => void handlePaymentMethodCheckout(paymentMethodCheckoutInvoice?.id)}
+              disabled={checkoutTargetId === paymentMethodCheckoutTargetId}
             >
-              {checkoutTargetId === "payment-method" ? "Opening..." : "Open Nomba checkout"}
+              {checkoutTargetId === paymentMethodCheckoutTargetId ? "Opening..." : "Open Nomba checkout"}
             </button>
+          ) : canUpdateCard && orderedMethods.length === 0 ? (
+            <p className="sp-portal-empty">No invoice is due right now.</p>
           ) : null}
         </section>
 
