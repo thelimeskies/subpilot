@@ -283,14 +283,14 @@ Main code areas:
 
 Deeper design docs:
 
-- Architecture: `docs/technical/architecture.md`
-- Data model: `docs/technical/data-model-erd.md`
-- API and webhooks: `docs/technical/api-and-webhooks.md`
-- Nomba integration contract: `docs/technical/nomba-integration-contract.md`
-- Customer portal SDK: `docs/technical/customer-portal-sdk.md`
-- Demo scenario and seed data: `docs/delivery/demo-scenario-and-seed-data.md`
-- End-to-end test plan: `docs/delivery/end-to-end-test-plan.md`
-- End-to-end QA runbook: `docs/delivery/end-to-end-qa-runbook.md`
+- [Architecture](docs/technical/architecture.md)
+- [Data model](docs/technical/data-model-erd.md)
+- [API and webhooks](docs/technical/api-and-webhooks.md)
+- [Nomba integration contract](docs/technical/nomba-integration-contract.md)
+- [Customer portal SDK](docs/technical/customer-portal-sdk.md)
+- [Demo scenario and seed data](docs/delivery/demo-scenario-and-seed-data.md)
+- [End-to-end test plan](docs/delivery/end-to-end-test-plan.md)
+- [End-to-end QA runbook](docs/delivery/end-to-end-qa-runbook.md)
 
 ## URLs
 
