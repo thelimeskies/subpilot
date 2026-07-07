@@ -175,6 +175,7 @@ export function SubPilotPortal({
       if (!checkout.checkoutUrl) {
         throw new Error("Nomba did not return a checkout URL.");
       }
+      window.sessionStorage?.setItem("subpilot:lastPortalToken", token);
       window.location.assign(checkout.checkoutUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open Nomba checkout.");
