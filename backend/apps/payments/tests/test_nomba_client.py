@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import timedelta
 from urllib import error
 
@@ -27,8 +28,10 @@ pytestmark = pytest.mark.django_db
 
 
 class _Response:
-    def __init__(self, payload: dict):
+    def __init__(self, payload: dict, *, headers: dict | None = None, status: int = 200):
         self.payload = payload
+        self.headers = headers or {}
+        self.status = status
 
     def __enter__(self):
         return self
@@ -87,6 +90,60 @@ def test_issue_token_uses_account_header_and_persists_tokens(monkeypatch):
     assert env.nomba_access_token == "access-token"
     assert env.nomba_refresh_token == "refresh-token"
     assert env.nomba_token_expires_at is not None
+
+
+def test_nomba_logs_request_and_response_headers_with_redaction(monkeypatch, caplog):
+    env = _environment()
+    env.nomba_account_id = "acct_123456789"
+    env.nomba_access_token = "access-token"
+    env.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    env.save(
+        update_fields=[
+            "nomba_account_id",
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+
+    def fake_urlopen(req, timeout):
+        return _Response(
+            {"code": "00", "data": {"tokenKey": "tok_secret", "status": "ok"}},
+            headers={
+                "Content-Type": "application/json",
+                "Set-Cookie": "session=secret-cookie",
+                "X-Nomba-Signature": "signature-secret",
+                "accountId": "acct_123456789",
+            },
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+
+    with caplog.at_level(logging.WARNING, logger="apps.payments.integrations.nomba.client"):
+        client.create_checkout_order({"order": {"orderReference": "checkout-ref"}})
+
+    request_logs = [record.getMessage() for record in caplog.records if record.getMessage().startswith("nomba.request")]
+    response_logs = [record.getMessage() for record in caplog.records if record.getMessage().startswith("nomba.response")]
+
+    assert request_logs
+    assert response_logs
+    request_log = request_logs[-1]
+    response_log = response_logs[-1]
+    assert '"headers":' in request_log
+    assert '"body":' in request_log
+    assert '"Authorization": "[redacted]"' in request_log
+    assert "Bearer access-token" not in request_log
+    assert "acct_123456789" not in request_log
+    assert "acct...6789" in request_log
+    assert '"headers":' in response_log
+    assert '"payload":' in response_log
+    assert '"Set-Cookie": "[redacted]"' in response_log
+    assert '"X-Nomba-Signature": "[redacted]"' in response_log
+    assert '"accountId": "acct...6789"' in response_log
+    assert "secret-cookie" not in response_log
+    assert "signature-secret" not in response_log
+    assert "tok_secret" not in response_log
 
 
 def test_authorized_request_refreshes_once_on_401(monkeypatch):

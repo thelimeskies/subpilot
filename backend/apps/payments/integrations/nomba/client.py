@@ -219,11 +219,24 @@ class NombaClient:
                 status_code = getattr(response, "status", None)
                 if status_code is None and hasattr(response, "getcode"):
                     status_code = response.getcode()
-                self._log_response(method=method, url=url, status_code=status_code or 200, payload=payload)
+                self._log_response(
+                    method=method,
+                    url=url,
+                    status_code=status_code or 200,
+                    headers=self._response_headers(response),
+                    payload=payload,
+                )
                 return payload
         except error.HTTPError as exc:
             payload = self._decode_response(exc.read())
-            self._log_response(method=method, url=url, status_code=exc.code, payload=payload, failed=True)
+            self._log_response(
+                method=method,
+                url=url,
+                status_code=exc.code,
+                headers=self._response_headers(exc),
+                payload=payload,
+                failed=True,
+            )
             raise self._error_for_status(exc.code, payload) from exc
         except (error.URLError, TimeoutError) as exc:
             self._log_transport_error(method=method, url=url, exc=exc)
@@ -235,7 +248,19 @@ class NombaClient:
             redacted = {}
             for key, child in value.items():
                 lowered = str(key).lower()
-                if any(part in lowered for part in ("authorization", "secret", "token", "password")):
+                if any(
+                    part in lowered
+                    for part in (
+                        "authorization",
+                        "secret",
+                        "token",
+                        "password",
+                        "cookie",
+                        "signature",
+                        "api-key",
+                        "apikey",
+                    )
+                ):
                     redacted[key] = cls.REDACTED
                 elif lowered in {"client_id", "clientid", "accountid", "account_id"}:
                     redacted[key] = cls._mask_identifier(str(child))
@@ -276,6 +301,7 @@ class NombaClient:
         method: str,
         url: str,
         status_code: int,
+        headers: dict[str, str],
         payload: dict[str, Any],
         failed: bool = False,
     ) -> None:
@@ -284,6 +310,7 @@ class NombaClient:
             "url": url,
             "status_code": status_code,
             "failed": failed,
+            "headers": self._limit(self._redact(headers)),
             "payload": self._limit(self._redact(payload)),
             "environment_id": str(getattr(self.environment, "id", "")),
             "merchant_id": str(getattr(self.environment, "merchant_id", "")),
@@ -304,6 +331,17 @@ class NombaClient:
     @staticmethod
     def _log_json(payload: dict[str, Any]) -> str:
         return json.dumps(payload, default=str, ensure_ascii=True, sort_keys=True)
+
+    @staticmethod
+    def _response_headers(response: Any) -> dict[str, str]:
+        headers = getattr(response, "headers", None)
+        if headers is None:
+            headers = getattr(response, "hdrs", None)
+        if headers is None:
+            return {}
+        if hasattr(headers, "items"):
+            return {str(key): str(value) for key, value in headers.items()}
+        return {}
 
     def _url(self, path: str, query: dict[str, Any] | None = None) -> str:
         normalized = path if path.startswith("/") else f"/{path}"
