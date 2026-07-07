@@ -40,7 +40,6 @@ import {
   formatRelative
 } from "../data/selectors";
 import type { Customer, Invoice, PaymentMethod } from "../data/seed";
-import { customerPortalUrl } from "../lib/urls";
 
 interface UpdateCardState {
   brand: PaymentMethod["brand"];
@@ -101,6 +100,7 @@ export function PortalPreviewPage() {
     customer?.paymentMethods[0] ??
     null;
   const canPayInvoice = portalData?.allowedActions.includes("pay_invoice") ?? false;
+  const visiblePortalUrl = portalLink ?? "Creating portal session...";
 
   const refreshPortal = useCallback(
     async (token = portalToken) => {
@@ -379,7 +379,7 @@ export function PortalPreviewPage() {
           <span className="mer-portal-frame__dot" />
           <span className="mer-portal-frame__url">
             <Lock size={12} aria-hidden="true" />
-            {customerPortalUrl(org.portalSubdomain, customer.id)}
+            {visiblePortalUrl}
           </span>
         </div>
 
