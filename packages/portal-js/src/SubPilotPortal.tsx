@@ -83,7 +83,13 @@ export function SubPilotPortal({
 
   const customer = data?.customer;
   const merchant = data?.merchant;
-  const activeSubscription = data?.subscriptions.find((sub) => sub.status === "active" || sub.status === "trialing") ?? data?.subscriptions[0] ?? null;
+  const ongoingSubscription =
+    data?.subscriptions.find((sub) => ["active", "trialing", "past_due", "paused", "incomplete"].includes(sub.status)) ?? null;
+  const latestSubscription = ongoingSubscription ?? data?.subscriptions[0] ?? null;
+  const activeSubscription = ongoingSubscription;
+  const displayedSubscription = latestSubscription;
+  const isCancelledSubscription = Boolean(displayedSubscription && displayedSubscription.status === "cancelled" && !ongoingSubscription);
+  const accessEndsAt = displayedSubscription?.cancelAt ?? displayedSubscription?.currentPeriodEnd ?? null;
   const openInvoices = useMemo(
     () => (data?.invoices ?? []).filter((invoice) => invoice.status === "open" || invoice.status === "past_due"),
     [data?.invoices]
@@ -123,8 +129,39 @@ export function SubPilotPortal({
       !activeSubscription
   );
   const planModalMode: "change" | "subscribe" = activeSubscription ? "change" : "subscribe";
+  const heroTitle = isCancelledSubscription
+    ? `${displayedSubscription?.planName ?? "Subscription"} cancelled`
+    : displayedSubscription?.planName ?? "Choose your plan";
+  const heroDescription = displayedSubscription
+    ? isCancelledSubscription
+      ? `Access continues until ${accessEndsAt ?? displayedSubscription.currentPeriodEnd}. You will not be billed again unless you choose a new plan.`
+      : displayedSubscription.cancelAt
+      ? `Access continues until ${displayedSubscription.cancelAt}. You will not be billed again.`
+      : `${formatCurrency(displayedSubscription.amount, displayedSubscription.currency)} per ${displayedSubscription.interval.replace("ly", "")}. Next billing ${displayedSubscription.currentPeriodEnd}.`
+    : "View plans, pay invoices, and manage your saved card.";
   const brandColor = merchant?.brandColor ?? "#056058";
   const shouldShowClose = showCloseButton ?? (displayMode === "modal" || Boolean(onClose));
+
+  const loadPlans = useCallback(async () => {
+    if (plans !== null || plansLoading) return;
+    setPlansLoading(true);
+    setError(null);
+    try {
+      const result = await client.listPlans(token);
+      setPlans(result.plans);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load available plans.");
+      setPlanModalOpen(false);
+    } finally {
+      setPlansLoading(false);
+    }
+  }, [client, plans, plansLoading, token]);
+
+  useEffect(() => {
+    if (canSubscribe) {
+      void loadPlans();
+    }
+  }, [canSubscribe, loadPlans]);
 
   if (!open) {
     return null;
@@ -173,7 +210,7 @@ export function SubPilotPortal({
     try {
       const checkout = await client.createPaymentMethodCheckout(token, invoiceId);
       if (!checkout.checkoutUrl) {
-        throw new Error("Nomba did not return a checkout URL.");
+        throw new Error("The secure card checkout did not return a payment link.");
       }
       window.sessionStorage?.setItem("subpilot:lastPortalToken", token);
       window.sessionStorage?.setItem("subpilot:lastNombaCheckoutInvoiceId", checkout.invoiceId);
@@ -184,7 +221,7 @@ export function SubPilotPortal({
       }
       window.location.assign(checkout.checkoutUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not open Nomba checkout.");
+      setError(err instanceof Error ? err.message : "Could not open secure card checkout.");
       setCheckoutTargetId(null);
     } finally {
       setCheckoutTargetId(null);
@@ -240,18 +277,7 @@ export function SubPilotPortal({
     setPlanModalOpen(true);
     setPlanPreview(null);
     setSelectedPlanId(null);
-    if (plans !== null) return;
-    setPlansLoading(true);
-    setError(null);
-    try {
-      const result = await client.listPlans(token);
-      setPlans(result.plans);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load available plans.");
-      setPlanModalOpen(false);
-    } finally {
-      setPlansLoading(false);
-    }
+    await loadPlans();
   }
 
   async function handleSelectPlan(plan: PortalPlan) {
@@ -356,7 +382,7 @@ export function SubPilotPortal({
           </div>
         </div>
         <div className="sp-portal-secure">
-          <span aria-hidden="true">Lock</span>
+          <span aria-hidden="true">Secure</span>
           <span>{customer.email}</span>
         </div>
       </header>
@@ -365,16 +391,12 @@ export function SubPilotPortal({
 
       <section className="sp-portal-hero">
         <div>
-          <span className="sp-portal-eyebrow">Tokenized payments</span>
-          <h1>{activeSubscription?.planName ?? "Billing portal"}</h1>
-          <p>
-            {activeSubscription
-              ? `${formatCurrency(activeSubscription.amount, activeSubscription.currency)} per ${activeSubscription.interval.replace("ly", "")}. Next billing ${activeSubscription.currentPeriodEnd}.`
-              : "Manage invoices and payment methods for your account."}
-          </p>
+          <span className="sp-portal-eyebrow">Billing and access</span>
+          <h1>{heroTitle}</h1>
+          <p>{heroDescription}</p>
         </div>
-        {activeSubscription ? (
-          <span className={`sp-portal-badge sp-portal-badge--${badgeTone(activeSubscription.status)}`}>{prettyStatus(activeSubscription.status)}</span>
+        {displayedSubscription ? (
+          <span className={`sp-portal-badge sp-portal-badge--${badgeTone(displayedSubscription.status)}`}>{prettyStatus(displayedSubscription.status)}</span>
         ) : null}
       </section>
 
@@ -410,7 +432,7 @@ export function SubPilotPortal({
         </section>
 
         <section className="sp-portal-panel">
-          <PanelHead title="Payment method" description="Cards are stored as token references." />
+          <PanelHead title="Payment method" description="Your saved card for renewals and invoice payments." />
           {orderedMethods.length > 0 ? (
             <div className="sp-portal-methods">
               {orderedMethods.map((method) => {
@@ -451,21 +473,24 @@ export function SubPilotPortal({
               onClick={() => void handlePaymentMethodCheckout(paymentMethodCheckoutInvoice?.id)}
               disabled={checkoutTargetId === paymentMethodCheckoutTargetId}
             >
-              {checkoutTargetId === paymentMethodCheckoutTargetId ? "Opening..." : "Open Nomba checkout"}
+              {checkoutTargetId === paymentMethodCheckoutTargetId ? "Opening..." : orderedMethods.length > 0 ? "Update card" : "Add card"}
             </button>
           ) : canUpdateCard && orderedMethods.length === 0 ? (
-            <p className="sp-portal-empty">No invoice is due right now.</p>
+            <p className="sp-portal-empty">You can add a card when an invoice is ready for payment.</p>
           ) : null}
         </section>
 
         <section className="sp-portal-panel">
-          <PanelHead title="Subscription" description="Current access and cancellation controls." />
-          {activeSubscription ? (
+          <PanelHead title="Subscription" description="Your access, renewal status, and plan options." />
+          {displayedSubscription ? (
             <>
-              <Detail label="Plan" value={activeSubscription.planName} />
-              <Detail label="Renews" value={activeSubscription.currentPeriodEnd} />
-              <Detail label="Status" value={prettyStatus(activeSubscription.status)} />
-              {(canChangePlan || (canCancel && activeSubscription.status !== "cancelled" && !activeSubscription.cancelAt)) ? (
+              <Detail label="Plan" value={displayedSubscription.planName} />
+              <Detail
+                label={isCancelledSubscription || displayedSubscription.cancelAt ? "Access until" : "Renews"}
+                value={accessEndsAt ?? displayedSubscription.currentPeriodEnd}
+              />
+              <Detail label="Status" value={prettyStatus(displayedSubscription.status)} />
+              {(canChangePlan || (activeSubscription && canCancel && activeSubscription.status !== "cancelled" && !activeSubscription.cancelAt)) ? (
                 <div className="sp-portal-panel__actions">
                   {canChangePlan ? (
                     <button
@@ -477,7 +502,7 @@ export function SubPilotPortal({
                       {plansLoading ? "Loading plans..." : "Change plan"}
                     </button>
                   ) : null}
-                  {canCancel && activeSubscription.status !== "cancelled" && !activeSubscription.cancelAt ? (
+                  {activeSubscription && canCancel && activeSubscription.status !== "cancelled" && !activeSubscription.cancelAt ? (
                     <button
                       className="sp-portal-button sp-portal-button--danger"
                       type="button"
@@ -489,11 +514,23 @@ export function SubPilotPortal({
                   ) : null}
                 </div>
               ) : null}
+              {canSubscribe ? (
+                <div className="sp-portal-panel__actions">
+                  <button
+                    className="sp-portal-button"
+                    type="button"
+                    onClick={() => void openPlanModal()}
+                    disabled={plansLoading}
+                  >
+                    {plansLoading ? "Loading plans..." : "Choose a new plan"}
+                  </button>
+                </div>
+              ) : null}
             </>
           ) : canSubscribe ? (
             <>
               <p className="sp-portal-empty">
-                You don’t have an active subscription yet. Pick a plan to get started.
+                You do not have an active subscription yet. Pick a plan to get started.
               </p>
               <div className="sp-portal-panel__actions">
                 <button
@@ -510,6 +547,56 @@ export function SubPilotPortal({
             <p className="sp-portal-empty">No active subscription.</p>
           )}
         </section>
+
+        {canSubscribe ? (
+          <section className="sp-portal-panel sp-portal-panel--wide">
+            <PanelHead
+              title="Available plans"
+              description={isCancelledSubscription ? "Subscribe again when you are ready." : "Choose the plan that fits you best."}
+            />
+            {plansLoading ? (
+              <div className="sp-portal-preview sp-portal-preview--loading">
+                <span className="sp-portal-spinner" aria-hidden="true" />
+                <small>Loading plans...</small>
+              </div>
+            ) : plans && plans.length > 0 ? (
+              <div className="sp-portal-plans sp-portal-plans--inline">
+                {plans.map((plan) => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    className="sp-portal-plan-card"
+                    onClick={() => {
+                      void handleSelectPlan(plan);
+                      setPlanModalOpen(true);
+                    }}
+                    disabled={changingPlan}
+                  >
+                    <div className="sp-portal-plan-card__head">
+                      <div>
+                        <strong>{plan.name}</strong>
+                        <small>{plan.productName}</small>
+                      </div>
+                    </div>
+                    <div className="sp-portal-plan-card__price">
+                      <strong>{formatCurrency(plan.amount, plan.currency)}</strong>
+                      <small>/ {plan.intervalUnit.replace("ly", "")}</small>
+                    </div>
+                    {plan.features && plan.features.length > 0 ? (
+                      <ul className="sp-portal-plan-card__features">
+                        {plan.features.slice(0, 4).map((feature) => (
+                          <li key={feature.label}>{feature.label}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="sp-portal-empty">No plans are available right now.</p>
+            )}
+          </section>
+        ) : null}
 
         <section className="sp-portal-panel sp-portal-panel--wide">
           <PanelHead title="Payment history" description="Recent paid invoices." />
