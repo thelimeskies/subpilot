@@ -84,6 +84,17 @@ def _decode_webhook_json(raw_body: bytes) -> tuple[dict, Response | None]:
     return payload, None
 
 
+def _webhook_probe_response(*, provider: str, mode: str = "", merchant_id: str = "") -> Response:
+    body = {
+        "ok": True,
+        "provider": provider,
+        "mode": mode,
+        "merchant_id": merchant_id,
+        "accepts": ["POST"],
+    }
+    return Response(body, status=status.HTTP_200_OK)
+
+
 def _first_mapping(*values):
     for value in values:
         if isinstance(value, dict):
@@ -511,6 +522,13 @@ class ProcessorWebhookView(APIView):
     permission_classes = [AllowAny]
     serializer_class = WebhookAckSerializer
 
+    def get(self, request, provider: str, merchant_id: str, mode: str):
+        return _webhook_probe_response(
+            provider=provider,
+            mode=mode,
+            merchant_id=str(merchant_id),
+        )
+
     def post(self, request, provider: str, merchant_id: str, mode: str):
         merchant = get_object_or_404(Merchant, id=merchant_id)
         environment = get_object_or_404(Environment, merchant=merchant, mode=mode)
@@ -564,6 +582,9 @@ class CentralNombaWebhookView(APIView):
     authentication_classes: list = []
     permission_classes = [AllowAny]
     serializer_class = WebhookAckSerializer
+
+    def get(self, request):
+        return _webhook_probe_response(provider="nomba", mode="platform")
 
     def post(self, request):
         adapter = get_adapter("nomba")

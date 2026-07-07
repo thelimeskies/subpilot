@@ -599,7 +599,12 @@ def _get_nomba_checkout_order(*, invoice: Invoice, order_reference: str) -> dict
         if code and code != "00":
             last_rejected = str(response.get("description") or response.get("message") or code)
             continue
-        return response
+        return _with_checkout_transaction(
+            client=client,
+            response=response,
+            references=references,
+            order_id_references={stored_checkout_id, hosted_checkout_id},
+        )
     if last_error is not None:
         raise last_error
     if last_rejected:
@@ -615,6 +620,75 @@ def _get_nomba_checkout_order(*, invoice: Invoice, order_reference: str) -> dict
     raise ServiceError("No Nomba checkout reference is available for this invoice.")
 
 
+def _with_checkout_transaction(
+    *,
+    client: NombaClient,
+    response: dict[str, Any],
+    references: list[str],
+    order_id_references: set[str],
+) -> dict[str, Any]:
+    """Attach Nomba checkout transaction details when the order endpoint is only structural."""
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    if _find_nested_dict(data, "transaction") or _find_nested_dict(data, "tokenizedCardData"):
+        return response
+
+    transaction_response: dict[str, Any] = {}
+    for reference in references:
+        id_type = "ORDER_ID" if reference in order_id_references else "ORDER_REFERENCE"
+        try:
+            candidate = client.fetch_checkout_transaction(idType=id_type, id=reference)
+        except NombaError:
+            continue
+        code = str(candidate.get("code") or "").strip()
+        if code and code != "00":
+            continue
+        candidate_data = candidate.get("data") if isinstance(candidate.get("data"), dict) else {}
+        if candidate_data:
+            transaction_response = candidate
+            break
+
+    if not transaction_response:
+        return response
+
+    transaction_data = transaction_response.get("data")
+    if not isinstance(transaction_data, dict):
+        return response
+
+    merged = {
+        **response,
+        "data": {
+            **data,
+            "checkoutTransaction": transaction_data,
+            "transactionLookup": transaction_data,
+        },
+    }
+    for key in ("transactionDetails", "transaction", "cardDetails", "tokenizedCardData"):
+        value = _find_nested_dict(transaction_data, key)
+        if value and key not in merged["data"]:
+            merged["data"][key] = value
+    transaction_details = _find_nested_dict(transaction_data, "transactionDetails")
+    if transaction_details and "transaction" not in merged["data"]:
+        merged["data"]["transaction"] = {
+            "transactionId": (
+                transaction_details.get("transactionId")
+                or transaction_details.get("id")
+                or transaction_details.get("reference")
+                or transaction_details.get("merchantTxRef")
+                or ""
+            ),
+            "transactionAmount": transaction_details.get("amount") or transaction_details.get("transactionAmount") or "",
+            "responseCode": "00" if transaction_data.get("success") is True else "",
+            "responseMessage": transaction_data.get("message") or transaction_details.get("message") or "",
+            "status": transaction_details.get("status") or "",
+            **transaction_details,
+        }
+    if transaction_data.get("success") is not None:
+        merged["data"]["success"] = transaction_data.get("success")
+    if transaction_data.get("message"):
+        merged["data"]["message"] = transaction_data.get("message")
+    return merged
+
+
 def _checkout_order_response_as_webhook_payload(
     *,
     invoice: Invoice,
@@ -623,6 +697,7 @@ def _checkout_order_response_as_webhook_payload(
     tokenized_card: dict[str, Any],
 ) -> dict[str, Any]:
     data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    order = _find_nested_dict(data, "order")
     transaction = _find_nested_dict(data, "transaction") or {}
     transaction_id = str(
         transaction.get("transactionId")
@@ -640,16 +715,23 @@ def _checkout_order_response_as_webhook_payload(
     }
     event_data = {
         **data,
-        "currency": data.get("currency") or invoice.currency,
-        "amount": data.get("amount") or _major_units(invoice.amount_due_minor or invoice.total_minor),
-        "orderReference": data.get("orderReference") or order_reference,
-        "orderMetaData": data.get("orderMetaData") if isinstance(data.get("orderMetaData"), dict) else metadata,
+        "currency": data.get("currency") or order.get("currency") or invoice.currency,
+        "amount": data.get("amount") or order.get("amount") or _major_units(invoice.amount_due_minor or invoice.total_minor),
+        "orderReference": data.get("orderReference") or order.get("orderReference") or order_reference,
+        "orderMetaData": (
+            data.get("orderMetaData")
+            if isinstance(data.get("orderMetaData"), dict)
+            else order.get("orderMetaData")
+            if isinstance(order.get("orderMetaData"), dict)
+            else metadata
+        ),
         "transaction": {
             **transaction,
             "transactionId": transaction_id,
             "transactionAmount": (
                 transaction.get("transactionAmount")
                 or data.get("amount")
+                or order.get("amount")
                 or _major_units(invoice.amount_due_minor or invoice.total_minor)
             ),
             "responseCode": transaction.get("responseCode") or "00",
@@ -683,6 +765,10 @@ def _checkout_payment_status(
     ).strip()
     if response_code == "00":
         return "successful", True
+
+    success = data.get("success")
+    if success is True:
+        return str(data.get("message") or "successful"), True
 
     for value in (
         transaction.get("status"),

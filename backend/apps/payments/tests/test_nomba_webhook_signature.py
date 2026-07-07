@@ -190,6 +190,24 @@ def test_nomba_webhook_accepts_documented_signature():
     assert event.processor_reference == payload["data"]["transaction"]["transactionId"]
 
 
+def test_nomba_webhook_get_probe_returns_ok_without_processing():
+    merchant, environment = _workspace()
+
+    response = APIClient().get(
+        f"/api/v1/payments/webhooks/nomba/{merchant.id}/{environment.mode}/"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "provider": "nomba",
+        "mode": environment.mode,
+        "merchant_id": str(merchant.id),
+        "accepts": ["POST"],
+    }
+    assert ProcessorEvent.objects.count() == 0
+
+
 def test_nomba_success_webhook_attaches_token_and_activates_subscription():
     merchant, environment, customer, subscription, invoice = _subscription_workspace()
     payload = _payload()
@@ -302,6 +320,20 @@ def test_central_nomba_webhook_routes_by_nomba_account_id():
     assert event.merchant == merchant
     assert event.environment == environment
     assert event.provider == "nomba"
+
+
+def test_central_nomba_webhook_get_probe_returns_ok_without_processing():
+    response = APIClient().get("/api/v1/payments/webhooks/nomba/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "provider": "nomba",
+        "mode": "platform",
+        "merchant_id": "",
+        "accepts": ["POST"],
+    }
+    assert ProcessorEvent.objects.count() == 0
 
 
 @override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")

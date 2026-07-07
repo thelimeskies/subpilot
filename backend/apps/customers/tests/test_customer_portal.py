@@ -514,6 +514,104 @@ def test_portal_checkout_confirm_polls_with_checkout_id_from_hosted_url(monkeypa
     assert seen == [f"https://sandbox.nomba.com/v1/checkout/order/{checkout_id}"]
 
 
+def test_portal_checkout_confirm_uses_transaction_lookup_when_order_is_structural(monkeypatch):
+    user, customer = _setup_workspace()
+    environment = customer.environment
+    environment.nomba_integration_mode = Environment.NombaIntegrationMode.BYOK
+    environment.nomba_account_id = "acct_123"
+    environment.nomba_client_id = "client_123"
+    environment.nomba_client_secret = "secret_123"
+    environment.nomba_access_token = "access-token"
+    environment.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    environment.save(
+        update_fields=[
+            "nomba_integration_mode",
+            "nomba_account_id",
+            "nomba_client_id",
+            "nomba_client_secret_encrypted",
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+    invoice = customer.invoices.get(number="INV-PORTAL-001")
+    checkout_id = "QMojVVIswaIri_iA6YONMcbjLOBR32-CvIArUO_lT9Szr_BGxp65Mgvx"
+    nomba_reference = "7b1d57a3-ecea-4fb2-be74-4f4f26f0f229"
+    local_reference = f"checkout-{invoice.id}"
+    invoice.hosted_payment_url = f"https://pay.nomba.com/sandbox/{checkout_id}"
+    invoice.metadata = {
+        "nomba_checkout_id": checkout_id,
+        "nomba_checkout_order_reference": nomba_reference,
+    }
+    invoice.save(update_fields=["hosted_payment_url", "metadata", "updated_at"])
+    client = _signed_in_client(user)
+    token, _session = _portal_token(
+        client,
+        customer,
+        actions=["view_subscriptions", "view_invoices", "update_payment_method"],
+    )
+    seen = []
+
+    def fake_urlopen(req, timeout):
+        seen.append(req.full_url)
+        if "/v1/checkout/order/" in req.full_url:
+            return _NombaResponse(
+                {
+                    "code": "00",
+                    "description": "order details fetched successful",
+                    "data": {
+                        "order": {
+                            "accountId": "acct_123",
+                            "amount": "15000.00",
+                            "currency": "NGN",
+                            "orderId": nomba_reference,
+                            "orderReference": local_reference,
+                            "orderMetaData": {
+                                "invoice_id": str(invoice.id),
+                                "customer_id": str(customer.id),
+                            },
+                        }
+                    },
+                }
+            )
+        return _NombaResponse(
+            {
+                "code": "00",
+                "description": "checkout transaction fetched",
+                "data": {
+                    "success": True,
+                    "message": "success",
+                    "transactionDetails": {
+                        "transactionId": "txn_lookup_123",
+                        "amount": "15000.00",
+                        "status": "SUCCESS",
+                    },
+                },
+            }
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    response = APIClient().post(
+        "/api/v1/portal/payment-methods/checkout/confirm",
+        data={"order_reference": nomba_reference, "invoice_id": str(invoice.id)},
+        format="json",
+        HTTP_AUTHORIZATION=f"Portal {token}",
+    )
+
+    assert response.status_code == 200, response.content
+    assert response.json()["confirmed"] is True
+    assert seen == [
+        f"https://sandbox.nomba.com/v1/checkout/order/{checkout_id}",
+        f"https://sandbox.nomba.com/v1/checkout/transaction?idType=ORDER_ID&id={checkout_id}",
+    ]
+    invoice.refresh_from_db()
+    assert invoice.status == Invoice.Status.PAID
+    attempt = PaymentAttempt.objects.get(invoice=invoice)
+    assert attempt.status == PaymentAttempt.Status.SUCCEEDED
+    assert attempt.processor_reference == "txn_lookup_123"
+
+
 def test_portal_checkout_confirm_returns_pending_when_nomba_rejects_lookup_refs(monkeypatch):
     user, customer = _setup_workspace()
     environment = customer.environment
