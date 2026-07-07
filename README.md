@@ -509,6 +509,27 @@ BASE_URL=http://localhost:8000 python scripts/platform_admin_e2e.py
 
 For manual QA and demo sign-off, use `docs/delivery/end-to-end-qa-runbook.md`.
 
+### Production Demo Video
+
+The polished production demo recording is exported as:
+
+```text
+subpilot-end-to-end-demo-20260707.mp4
+```
+
+The recording is a 6 minute 14 second end-to-end walkthrough with burned-in captions and AAC audio. It uses the production HTTPS surfaces and Nomba sandbox checkout; do not switch the platform to live Nomba mode for this demo.
+
+Surfaces shown:
+
+| Surface | URL |
+|---|---|
+| Merchant dashboard | `https://app.subpilot.kylodo.com` |
+| Customer portal | `https://portal.subpilot.kylodo.com` |
+| Platform admin | `https://platform-admin.subpilot.kylodo.com` |
+| Nomba webhook callback | `https://api.subpilot.kylodo.com/api/v1/payments/webhooks/nomba/` |
+
+The video covers merchant dashboard operations, open invoices, the hosted customer portal, Nomba sandbox card checkout, callback handling, payment-attempt evidence, webhook/audit visibility, and platform-admin Nomba configuration.
+
 ## Verification Commands
 
 Frontend:
