@@ -41,7 +41,7 @@ class Invoice(TenantDomainModel):
     currency = models.CharField(max_length=3)
     due_at = models.DateTimeField(null=True, blank=True, db_index=True)
     paid_at = models.DateTimeField(null=True, blank=True)
-    hosted_payment_url = models.URLField(max_length=500, blank=True, default="")
+    hosted_payment_url = models.URLField(max_length=2048, blank=True, default="")
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:

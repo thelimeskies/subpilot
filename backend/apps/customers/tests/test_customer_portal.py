@@ -221,6 +221,7 @@ def test_portal_payment_method_checkout_starts_nomba_tokenized_checkout(monkeypa
         customer,
         actions=["view_subscriptions", "view_invoices", "update_payment_method"],
     )
+    checkout_link = f"https://checkout.nomba.test/order/123?token={'x' * 620}"
     seen = {}
 
     def fake_urlopen(req, timeout):
@@ -232,7 +233,7 @@ def test_portal_payment_method_checkout_starts_nomba_tokenized_checkout(monkeypa
                 "code": "00",
                 "description": "created",
                 "data": {
-                    "checkoutLink": "https://checkout.nomba.test/order/123",
+                    "checkoutLink": checkout_link,
                     "orderReference": "checkout-ref-123",
                 },
             }
@@ -249,7 +250,7 @@ def test_portal_payment_method_checkout_starts_nomba_tokenized_checkout(monkeypa
 
     assert response.status_code == 201, response.content
     assert response.json() == {
-        "checkout_url": "https://checkout.nomba.test/order/123",
+        "checkout_url": checkout_link,
         "invoice_id": str(invoice.id),
         "processor": "nomba",
     }
@@ -262,7 +263,8 @@ def test_portal_payment_method_checkout_starts_nomba_tokenized_checkout(monkeypa
     assert "cardNumber" not in json.dumps(seen["body"])
     assert "cvc" not in json.dumps(seen["body"]).lower()
     invoice.refresh_from_db()
-    assert invoice.hosted_payment_url == "https://checkout.nomba.test/order/123"
+    assert invoice.hosted_payment_url == checkout_link
+    assert len(invoice.hosted_payment_url) > 500
 
 
 def test_portal_rejects_direct_nomba_card_token_attachment():
