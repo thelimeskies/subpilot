@@ -96,8 +96,11 @@ def _central_webhook_metadata(payload: dict) -> dict:
     transaction = data.get("transaction") if isinstance(data.get("transaction"), dict) else {}
     return _first_mapping(
         payload.get("metadata"),
+        payload.get("orderMetaData"),
         data.get("metadata"),
+        data.get("orderMetaData"),
         transaction.get("metadata"),
+        transaction.get("orderMetaData"),
     )
 
 

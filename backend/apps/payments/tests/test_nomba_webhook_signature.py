@@ -258,6 +258,39 @@ def test_central_nomba_webhook_routes_by_nomba_account_id():
 
 
 @override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")
+def test_central_nomba_webhook_routes_by_order_metadata_invoice_id():
+    merchant, environment, _customer, _subscription, invoice = _subscription_workspace()
+    payload = _payload()
+    payload["data"]["merchant"]["walletId"] = "unknown-wallet"
+    payload["data"]["merchant"]["userId"] = "unknown-user"
+    payload["data"]["orderMetaData"] = {
+        "invoice_id": str(invoice.id),
+        "subscription_id": str(invoice.subscription_id),
+    }
+    timestamp = "2025-09-29T10:51:44Z"
+    body = json.dumps(payload).encode()
+
+    response = APIClient().post(
+        "/api/v1/payments/webhooks/nomba/",
+        data=body,
+        content_type="application/json",
+        HTTP_NOMBA_SIGNATURE=_signature(
+            payload,
+            "platform_nomba_webhook_secret",
+            timestamp,
+        ),
+        HTTP_NOMBA_SIGNATURE_ALGORITHM="HmacSHA256",
+        HTTP_NOMBA_SIGNATURE_VERSION="1.0.0",
+        HTTP_NOMBA_TIMESTAMP=timestamp,
+    )
+
+    assert response.status_code == 200, response.content
+    event = ProcessorEvent.objects.get()
+    assert event.merchant == merchant
+    assert event.environment == environment
+
+
+@override_settings(NOMBA_WEBHOOK_SECRET="platform_nomba_webhook_secret")
 def test_central_nomba_webhook_rejects_unroutable_event():
     _workspace()
     payload = _payload()
