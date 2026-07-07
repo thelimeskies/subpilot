@@ -1,0 +1,10 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot logo mark</title>
+  <desc id="desc">A minimal deep ink SubPilot S mark with a teal pilot signal.</desc>
+  <rect width="512" height="512" rx="116" fill="#0B1720"/>
+  <path d="M326 138H224C181 138 148 169 148 209C148 249 181 280 224 280H286C312 280 332 299 332 324C332 350 312 370 286 370H164" stroke="#FFFFFF" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M358 138H334" stroke="#14B8A6" stroke-width="46" stroke-linecap="round"/>
+  <circle cx="360" cy="370" r="24" fill="#14B8A6"/>
+  <circle cx="390" cy="104" r="22" fill="#14B8A6"/>
+  <circle cx="390" cy="104" r="10" fill="#CCFBF1"/>
+</svg>

@@ -1,0 +1,132 @@
+{
+  "merchant": {
+    "name": "Acme Learning Hub",
+    "slug": "acme-learning-hub",
+    "default_currency": "NGN",
+    "environment": "test",
+    "nomba_mode": "mock"
+  },
+  "team": [
+    {"name": "Tola Adeyemi", "email": "owner@example.com", "role": "owner"},
+    {"name": "Miriam Okoro", "email": "billing@example.com", "role": "billing_admin"},
+    {"name": "Femi Johnson", "email": "dev@example.com", "role": "developer"},
+    {"name": "Halima Yusuf", "email": "finance@example.com", "role": "finance"},
+    {"name": "David Eze", "email": "support@example.com", "role": "support"}
+  ],
+  "dunning_policies": [
+    {
+      "id": "dun_default_saas",
+      "name": "Default SaaS Recovery",
+      "retry_offsets_days": [0, 1, 3, 7, 14],
+      "grace_period_days": 7,
+      "final_action": "pause",
+      "notifications": {"email": true, "sms": true, "webhook": true},
+      "hard_failure_behavior": "require_new_payment_method"
+    },
+    {
+      "id": "dun_enterprise_gentle",
+      "name": "Gentle Enterprise Recovery",
+      "retry_offsets_days": [1, 3, 7, 14, 21],
+      "grace_period_days": 21,
+      "final_action": "mark_unpaid",
+      "notifications": {"email": true, "sms": false, "webhook": true},
+      "hard_failure_behavior": "notify_billing_contact"
+    }
+  ],
+  "products": [
+    {
+      "id": "prod_learning",
+      "name": "Learning Platform",
+      "plans": [
+        {
+          "id": "plan_starter_monthly",
+          "name": "Starter",
+          "amount_minor": 500000,
+          "currency": "NGN",
+          "interval_unit": "month",
+          "interval_count": 1,
+          "trial_days": 7,
+          "dunning_policy_id": "dun_default_saas",
+          "features": [
+            {"key": "courses", "name": "Courses", "limit": 3},
+            {"key": "support", "name": "Basic support", "included": true}
+          ]
+        },
+        {
+          "id": "plan_pro_monthly",
+          "name": "Pro",
+          "amount_minor": 1500000,
+          "currency": "NGN",
+          "interval_unit": "month",
+          "interval_count": 1,
+          "trial_days": 14,
+          "dunning_policy_id": "dun_default_saas",
+          "features": [
+            {"key": "courses", "name": "Courses", "limit": 10},
+            {"key": "reports", "name": "Reports", "included": true},
+            {"key": "api_access", "name": "API access", "included": true}
+          ]
+        },
+        {
+          "id": "plan_business_annual",
+          "name": "Business",
+          "amount_minor": 15000000,
+          "currency": "NGN",
+          "interval_unit": "year",
+          "interval_count": 1,
+          "trial_days": 0,
+          "dunning_policy_id": "dun_enterprise_gentle",
+          "features": [
+            {"key": "courses", "name": "Courses", "limit": null},
+            {"key": "team_seats", "name": "Team seats", "limit": 50},
+            {"key": "priority_support", "name": "Priority support", "included": true}
+          ]
+        }
+      ]
+    }
+  ],
+  "customers": [
+    {
+      "id": "cus_ada",
+      "name": "Ada Okafor",
+      "email": "ada@example.com",
+      "subscription": {"id": "sub_ada_pro", "plan_id": "plan_pro_monthly", "status": "active"}
+    },
+    {
+      "id": "cus_chinedu",
+      "name": "Chinedu Bello",
+      "email": "chinedu@example.com",
+      "subscription": {"id": "sub_chinedu_pro", "plan_id": "plan_pro_monthly", "status": "past_due"},
+      "failed_invoice": {
+        "id": "inv_chinedu_00042",
+        "number": "INV-00042",
+        "amount_due_minor": 1500000,
+        "failure_code": "insufficient_funds",
+        "attempt_number": 2,
+        "next_retry_offset": "tomorrow"
+      }
+    },
+    {
+      "id": "cus_zainab",
+      "name": "Zainab Musa",
+      "email": "zainab@example.com",
+      "subscription": {"id": "sub_zainab_starter", "plan_id": "plan_starter_monthly", "status": "trialing"}
+    },
+    {
+      "id": "cus_tunde",
+      "name": "Tunde Martins",
+      "email": "tunde@example.com",
+      "subscription": {"id": "sub_tunde_business", "plan_id": "plan_business_annual", "status": "canceling"}
+    },
+    {
+      "id": "cus_kemi",
+      "name": "Kemi Lawal",
+      "email": "kemi@example.com",
+      "subscription": {"id": "sub_kemi_pro", "plan_id": "plan_pro_monthly", "status": "active"}
+    }
+  ],
+  "webhook_endpoint": {
+    "url": "https://merchant.example.com/subpilot/events",
+    "event_filters": ["subscription.*", "invoice.*", "dunning.*", "payment_method.*"]
+  }
+}

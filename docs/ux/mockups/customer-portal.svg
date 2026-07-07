@@ -1,0 +1,30 @@
+<svg width="900" height="1100" viewBox="0 0 900 1100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot Customer Portal Mockup</title>
+  <desc id="desc">High-fidelity customer billing portal showing active and past-due recovery states.</desc>
+  <rect width="900" height="1100" fill="#F8FAF9"/>
+  <rect x="190" y="64" width="520" height="972" rx="30" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <rect x="222" y="96" width="456" height="128" rx="24" fill="#0B1720"/>
+  <text x="254" y="148" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="850">Acme Learning Hub</text>
+  <text x="254" y="184" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="16">Secure billing portal powered by SubPilot</text>
+  <rect x="222" y="252" width="456" height="108" rx="20" fill="#ECFDF5" stroke="#0F766E"/>
+  <text x="254" y="294" fill="#0F766E" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="850">CURRENT PLAN</text>
+  <text x="254" y="330" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="850">Pro Monthly</text>
+  <text x="494" y="330" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800">NGN 15,000</text>
+  <rect x="222" y="392" width="456" height="138" rx="20" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="254" y="430" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="850">SUBSCRIPTION</text>
+  <text x="254" y="466" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800">Active</text>
+  <text x="254" y="500" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">Renews Jul 19, 2026</text>
+  <rect x="222" y="562" width="456" height="138" rx="20" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="254" y="600" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="850">PAYMENT METHOD</text>
+  <text x="254" y="636" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800">Visa ending 4242</text>
+  <text x="254" y="670" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">Expires 08/28</text>
+  <rect x="222" y="732" width="456" height="92" rx="20" fill="#FEF3C7" stroke="#B7791F"/>
+  <text x="254" y="768" fill="#B7791F" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="850">Past due state</text>
+  <text x="254" y="798" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">Invoice INV-00042 failed. Update your card to restore access.</text>
+  <rect x="222" y="858" width="456" height="56" rx="14" fill="#14B8A6"/>
+  <text x="363" y="894" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="850">Update payment method</text>
+  <rect x="222" y="936" width="216" height="54" rx="14" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="278" y="970" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Receipts</text>
+  <rect x="462" y="936" width="216" height="54" rx="14" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="520" y="970" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Cancel plan</text>
+</svg>

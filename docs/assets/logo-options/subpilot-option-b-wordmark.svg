@@ -1,0 +1,13 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot logo option B - Wordmark</title>
+  <desc id="desc">A premium wordmark with a compact teal signal mark.</desc>
+  <rect width="1200" height="320" rx="40" fill="#F8FAF9"/>
+  <g transform="translate(76 86)">
+    <rect x="0" y="0" width="148" height="148" rx="36" fill="#14B8A6"/>
+    <path d="M95 43H66C53 43 43 52 43 64C43 76 53 85 66 85H84C94 85 102 93 102 102C102 111 94 119 84 119H45" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="105" cy="43" r="7" fill="#CCFBF1"/>
+  </g>
+  <text x="270" y="154" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="96" font-weight="900" letter-spacing="0">SubPilot</text>
+  <path d="M270 182H635" stroke="#14B8A6" stroke-width="8" stroke-linecap="round"/>
+  <text x="270" y="226" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="500" letter-spacing="0">Recurring billing control for product teams using Nomba APIs.</text>
+</svg>

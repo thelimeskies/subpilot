@@ -1,0 +1,61 @@
+<svg width="1440" height="1024" viewBox="0 0 1440 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot Brand Board</title>
+  <desc id="desc">Brand board showing logo options, colors, typography, and UI usage for SubPilot.</desc>
+  <rect width="1440" height="1024" fill="#F8FAF9"/>
+  <text x="72" y="92" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="44" font-weight="900">SubPilot Brand Board</text>
+  <text x="72" y="132" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="20">Subscription operations, guided from checkout to renewal.</text>
+
+  <rect x="72" y="180" width="600" height="260" rx="28" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <rect x="112" y="236" width="128" height="128" rx="32" fill="#14B8A6"/>
+  <path d="M194 274H166C153 274 143 283 143 295C143 307 153 316 166 316H184C194 316 202 324 202 333C202 342 194 350 184 350H145" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="204" cy="274" r="7" fill="#CCFBF1"/>
+  <text x="280" y="306" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="70" font-weight="900">SubPilot</text>
+  <path d="M282 330H540" stroke="#14B8A6" stroke-width="8" stroke-linecap="round"/>
+  <text x="282" y="372" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="18">Primary wordmark direction</text>
+
+  <rect x="720" y="180" width="648" height="260" rx="28" fill="#0B1720"/>
+  <text x="760" y="246" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="60" font-weight="900">SubPilot</text>
+  <text x="760" y="292" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="22">Plans, renewals, recovery, and webhooks in one place.</text>
+  <rect x="760" y="330" width="254" height="48" rx="24" fill="#14B8A6"/>
+  <text x="790" y="361" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800">Uses Nomba APIs</text>
+
+  <text x="72" y="520" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900">Color System</text>
+  <g>
+    <rect x="72" y="556" width="180" height="120" rx="20" fill="#0B1720"/>
+    <text x="92" y="704" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Deep Ink</text>
+    <text x="92" y="730" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15">#0B1720</text>
+  </g>
+  <g>
+    <rect x="286" y="556" width="180" height="120" rx="20" fill="#14B8A6"/>
+    <text x="306" y="704" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Signal Teal</text>
+    <text x="306" y="730" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15">#14B8A6</text>
+  </g>
+  <g>
+    <rect x="500" y="556" width="180" height="120" rx="20" fill="#ECFDF5" stroke="#D8E7E1"/>
+    <text x="520" y="704" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Mint Wash</text>
+    <text x="520" y="730" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15">#ECFDF5</text>
+  </g>
+  <g>
+    <rect x="714" y="556" width="180" height="120" rx="20" fill="#FFFFFF" stroke="#D8E7E1"/>
+    <text x="734" y="704" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Surface</text>
+    <text x="734" y="730" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15">#FFFFFF</text>
+  </g>
+  <g>
+    <rect x="928" y="556" width="180" height="120" rx="20" fill="#B42318"/>
+    <text x="948" y="704" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Danger</text>
+    <text x="948" y="730" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15">#B42318</text>
+  </g>
+  <g>
+    <rect x="1142" y="556" width="180" height="120" rx="20" fill="#15803D"/>
+    <text x="1162" y="704" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Success</text>
+    <text x="1162" y="730" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15">#15803D</text>
+  </g>
+
+  <text x="72" y="820" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="900">Typography and UI Tone</text>
+  <text x="72" y="872" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="850">Operational clarity over decoration</text>
+  <text x="72" y="916" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="20">Use dense tables, clear status labels, timeline evidence, and restrained action colors.</text>
+  <rect x="980" y="820" width="180" height="56" rx="14" fill="#14B8A6"/>
+  <text x="1032" y="856" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="850">Primary</text>
+  <rect x="1184" y="820" width="180" height="56" rx="14" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="1236" y="856" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="850">Secondary</text>
+</svg>

@@ -290,6 +290,7 @@ Deeper design docs:
 - Customer portal SDK: `docs/technical/customer-portal-sdk.md`
 - Demo scenario and seed data: `docs/delivery/demo-scenario-and-seed-data.md`
 - End-to-end test plan: `docs/delivery/end-to-end-test-plan.md`
+- End-to-end QA runbook: `docs/delivery/end-to-end-qa-runbook.md`
 
 ## URLs
 
@@ -505,6 +506,8 @@ If you execute from outside Docker and the backend is not on `localhost:8000`, p
 BASE_URL=http://localhost:8000 python scripts/e2e_smoke.py
 BASE_URL=http://localhost:8000 python scripts/platform_admin_e2e.py
 ```
+
+For manual QA and demo sign-off, use `docs/delivery/end-to-end-qa-runbook.md`.
 
 ## Verification Commands
 

@@ -1,0 +1,43 @@
+<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot Developer Console Mockup</title>
+  <desc id="desc">High-fidelity developer console mockup for API keys, SDK snippets, events, and webhook replay.</desc>
+  <rect width="1440" height="980" fill="#F8FAF9"/>
+  <text x="72" y="92" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="850">Developer Console</text>
+  <text x="72" y="126" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="18">Integrate subscriptions, tokenized-card recovery, and signed webhooks.</text>
+  <rect x="72" y="170" width="560" height="710" rx="22" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="104" y="218" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="850">API quickstart</text>
+  <rect x="104" y="250" width="220" height="38" rx="19" fill="#ECFDF5" stroke="#0F766E"/>
+  <text x="142" y="275" fill="#0F766E" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="850">Test environment</text>
+  <text x="104" y="334" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="850">PYTHON SDK</text>
+  <rect x="104" y="360" width="486" height="268" rx="16" fill="#0B1720"/>
+  <text x="128" y="398" fill="#CCFBF1" font-family="Menlo, Consolas, monospace" font-size="15">from subpilot import SubPilot</text>
+  <text x="128" y="432" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">client = SubPilot(api_key="sp_test_xxx")</text>
+  <text x="128" y="482" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">sub = client.subscriptions.create(</text>
+  <text x="152" y="516" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">customer={"email": "ada@example.com"},</text>
+  <text x="152" y="550" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">items=[{"plan_id": "plan_pro"}],</text>
+  <text x="128" y="584" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">)</text>
+  <text x="104" y="688" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="850">TOKENIZED-CARD PRIMITIVE</text>
+  <text x="104" y="724" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17">Create payment-method sessions for card update and failed-invoice recovery without handling raw card data.</text>
+  <rect x="104" y="790" width="222" height="50" rx="14" fill="#14B8A6"/>
+  <text x="148" y="822" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="850">Copy SDK snippet</text>
+  <rect x="664" y="170" width="704" height="710" rx="22" fill="#ECFDF5" stroke="#D8E7E1"/>
+  <text x="704" y="218" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="850">Event stream</text>
+  <text x="704" y="252" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">Signed events for downstream product teams.</text>
+  <rect x="704" y="304" width="620" height="74" rx="16" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="728" y="334" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="850">subscription.activated</text>
+  <text x="728" y="360" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14">Delivered 200 OK · evt_123</text>
+  <rect x="704" y="400" width="620" height="74" rx="16" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="728" y="430" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="850">invoice.payment_failed</text>
+  <text x="728" y="456" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14">Retry scheduled · attempt 2 of 5</text>
+  <rect x="704" y="496" width="620" height="74" rx="16" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="728" y="526" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="850">dunning.recovered</text>
+  <text x="728" y="552" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14">Failed delivery 500 · next retry 10:45</text>
+  <rect x="704" y="620" width="620" height="180" rx="16" fill="#0B1720"/>
+  <text x="728" y="660" fill="#CCFBF1" font-family="Menlo, Consolas, monospace" font-size="15">SubPilot-Signature: v1=...</text>
+  <text x="728" y="696" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">{"type": "dunning.recovered",</text>
+  <text x="752" y="732" fill="#FFFFFF" font-family="Menlo, Consolas, monospace" font-size="15">"data": {"subscription_id": "sub_123"}}</text>
+  <rect x="704" y="826" width="180" height="48" rx="12" fill="#14B8A6"/>
+  <text x="748" y="857" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="850">Replay event</text>
+  <rect x="904" y="826" width="168" height="48" rx="12" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="949" y="857" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="850">Copy payload</text>
+</svg>

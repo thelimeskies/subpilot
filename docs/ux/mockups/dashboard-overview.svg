@@ -1,0 +1,88 @@
+<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SubPilot Dashboard Overview Mockup</title>
+  <desc id="desc">High-fidelity dashboard mockup showing recurring revenue metrics, renewals, and billing events.</desc>
+  <rect width="1440" height="980" fill="#F8FAF9"/>
+  <rect x="32" y="32" width="248" height="916" rx="24" fill="#0B1720"/>
+  <rect x="64" y="64" width="44" height="44" rx="12" fill="#14B8A6"/>
+  <path d="M92 76H78C72.5 76 68 80.1 68 85.1C68 90.1 72.5 94.2 78 94.2H85C88.2 94.2 90.8 96.6 90.8 99.5C90.8 102.4 88.2 104.8 85 104.8H70" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="124" y="94" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="800">SubPilot</text>
+  <text x="64" y="172" fill="#CCFBF1" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">MAIN</text>
+  <text x="64" y="214" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Overview</text>
+  <text x="64" y="258" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="17">Plans</text>
+  <text x="64" y="302" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="17">Subscriptions</text>
+  <text x="64" y="346" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="17">Customers</text>
+  <text x="64" y="390" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="17">Invoices</text>
+  <text x="64" y="434" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="17">Recovery</text>
+  <text x="64" y="478" fill="#C9D8D3" font-family="Inter, Arial, sans-serif" font-size="17">Developers</text>
+  <text x="64" y="890" fill="#91A8A1" font-family="Inter, Arial, sans-serif" font-size="14">Test environment</text>
+  <rect x="312" y="32" width="1096" height="80" rx="20" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="344" y="81" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="750">Acme Learning Hub</text>
+  <rect x="620" y="54" width="120" height="36" rx="18" fill="#ECFDF5" stroke="#0F766E"/>
+  <text x="651" y="77" fill="#0F766E" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="750">Test</text>
+  <rect x="1038" y="50" width="158" height="44" rx="12" fill="#14B8A6"/>
+  <text x="1067" y="78" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="750">Create plan</text>
+  <rect x="1216" y="50" width="152" height="44" rx="12" fill="#0B1720"/>
+  <text x="1244" y="78" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="750">API logs</text>
+  <text x="312" y="166" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="850">Recurring revenue overview</text>
+  <text x="312" y="198" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="17">Monitor active subscriptions, failed renewals, recovery, and upcoming billing work.</text>
+  <g>
+    <rect x="312" y="232" width="254" height="148" rx="18" fill="#FFFFFF" stroke="#D8E7E1"/>
+    <text x="340" y="270" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">MRR</text>
+    <text x="340" y="322" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="850">NGN 4.8M</text>
+    <text x="340" y="350" fill="#15803D" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="750">+12.4% this month</text>
+  </g>
+  <g>
+    <rect x="586" y="232" width="254" height="148" rx="18" fill="#FFFFFF" stroke="#D8E7E1"/>
+    <text x="614" y="270" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">ACTIVE SUBSCRIPTIONS</text>
+    <text x="614" y="322" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="850">1,284</text>
+    <text x="614" y="350" fill="#2563EB" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="750">94 trialing</text>
+  </g>
+  <g>
+    <rect x="860" y="232" width="254" height="148" rx="18" fill="#ECFDF5" stroke="#0F766E"/>
+    <text x="888" y="270" fill="#0F766E" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="800">REVENUE AT RISK</text>
+    <text x="888" y="322" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="850">NGN 312K</text>
+    <text x="888" y="350" fill="#B7791F" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="750">23 failed renewals</text>
+  </g>
+  <g>
+    <rect x="1134" y="232" width="274" height="148" rx="18" fill="#FFFFFF" stroke="#D8E7E1"/>
+    <text x="1162" y="270" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">RECOVERY RATE</text>
+    <text x="1162" y="322" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="850">68%</text>
+    <text x="1162" y="350" fill="#15803D" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="750">+8 pts</text>
+  </g>
+  <rect x="312" y="412" width="690" height="492" rx="20" fill="#FFFFFF" stroke="#D8E7E1"/>
+  <text x="344" y="456" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800">Upcoming renewals</text>
+  <text x="344" y="492" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">CUSTOMER</text>
+  <text x="594" y="492" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">PLAN</text>
+  <text x="736" y="492" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">AMOUNT</text>
+  <text x="880" y="492" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">STATUS</text>
+  <line x1="344" y1="512" x2="970" y2="512" stroke="#D8E7E1"/>
+  <text x="344" y="552" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Ada Okafor</text>
+  <text x="594" y="552" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">Pro</text>
+  <text x="736" y="552" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">NGN 15,000</text>
+  <rect x="880" y="530" width="74" height="28" rx="14" fill="#DCFCE7"/>
+  <text x="900" y="549" fill="#15803D" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="750">Active</text>
+  <line x1="344" y1="582" x2="970" y2="582" stroke="#D8E7E1"/>
+  <text x="344" y="622" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Zainab Musa</text>
+  <text x="594" y="622" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">Starter</text>
+  <text x="736" y="622" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">NGN 5,000</text>
+  <rect x="880" y="600" width="84" height="28" rx="14" fill="#DBEAFE"/>
+  <text x="898" y="619" fill="#2563EB" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="750">Trialing</text>
+  <line x1="344" y1="652" x2="970" y2="652" stroke="#D8E7E1"/>
+  <text x="344" y="692" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">Tunde Martins</text>
+  <text x="594" y="692" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">Business</text>
+  <text x="736" y="692" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16">NGN 150,000</text>
+  <rect x="880" y="670" width="92" height="28" rx="14" fill="#FEF3C7"/>
+  <text x="896" y="689" fill="#B7791F" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="750">Canceling</text>
+  <rect x="1032" y="412" width="376" height="492" rx="20" fill="#ECFDF5" stroke="#D8E7E1"/>
+  <text x="1064" y="456" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800">Recent billing events</text>
+  <text x="1064" y="512" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">09:12</text>
+  <text x="1120" y="512" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">invoice.payment_succeeded</text>
+  <text x="1064" y="562" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">09:10</text>
+  <text x="1120" y="562" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">invoice.payment_failed</text>
+  <text x="1064" y="612" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">08:54</text>
+  <text x="1120" y="612" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">webhook.delivered</text>
+  <text x="1064" y="662" fill="#0B1720" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700">08:20</text>
+  <text x="1120" y="662" fill="#52615D" font-family="Inter, Arial, sans-serif" font-size="16">payment_method.updated</text>
+  <rect x="1064" y="730" width="284" height="48" rx="12" fill="#14B8A6"/>
+  <text x="1136" y="761" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800">Open recovery queue</text>
+</svg>
