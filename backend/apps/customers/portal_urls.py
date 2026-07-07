@@ -11,6 +11,7 @@ from .portal_views import (
     PortalInvoicesView,
     PortalPayInvoiceView,
     PortalPaymentMethodCheckoutView,
+    PortalPaymentMethodCheckoutConfirmView,
     PortalPaymentMethodsView,
     PortalPlansView,
     PortalPreviewChangePlanView,
@@ -57,6 +58,11 @@ urlpatterns = [
         "payment-methods/checkout",
         PortalPaymentMethodCheckoutView.as_view(),
         name="portal-payment-method-checkout",
+    ),
+    path(
+        "payment-methods/checkout/confirm",
+        PortalPaymentMethodCheckoutConfirmView.as_view(),
+        name="portal-payment-method-checkout-confirm",
     ),
     path(
         "payment-methods/<uuid:pm_id>/set-default",

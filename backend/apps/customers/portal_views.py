@@ -18,6 +18,8 @@ Endpoints (all under /api/v1/portal/):
 """
 from __future__ import annotations
 
+from uuid import UUID
+
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiTypes, extend_schema
@@ -33,10 +35,12 @@ from apps.common.exceptions import ServiceError
 from apps.invoices.models import Invoice
 from apps.invoices.serializers import InvoiceSerializer
 from apps.invoices.services.delivery import build_invoice_pdf
+from apps.payments.integrations.nomba.client import NombaError
 from apps.payments.services import (
     charge_invoice as charge_invoice_service,
 )
 from apps.payments.services import (
+    confirm_nomba_tokenized_checkout,
     create_nomba_tokenized_checkout,
 )
 from apps.subscriptions.models import Subscription
@@ -232,6 +236,94 @@ class PortalPaymentMethodCheckoutView(_PortalView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class PortalPaymentMethodCheckoutConfirmView(_PortalView):
+    portal_action = "update_payment_method"
+
+    @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
+    def post(self, request):
+        customer: Customer = request.portal_session.customer
+        payload = request.data or {}
+        order_reference = str(payload.get("order_reference") or "").strip()
+        order_id = str(payload.get("order_id") or "").strip()
+        if not order_reference and not order_id:
+            return Response(
+                {"reason": "A Nomba order reference or order id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        lookup_reference = order_reference or order_id
+        invoice = _invoice_for_checkout_reference(
+            customer=customer,
+            order_reference=lookup_reference,
+            invoice_id=str(payload.get("invoice_id") or "").strip(),
+        )
+        if invoice is None:
+            return Response(
+                {"reason": "No invoice was found for this checkout reference."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            result = confirm_nomba_tokenized_checkout(
+                invoice=invoice,
+                order_reference=lookup_reference,
+                request=request,
+            )
+        except ServiceError as exc:
+            return Response({"reason": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except NombaError as exc:
+            return Response(
+                {"reason": f"Could not confirm this payment with Nomba: {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        response_status = status.HTTP_200_OK if result["confirmed"] else status.HTTP_202_ACCEPTED
+        return Response(
+            {
+                "confirmed": result["confirmed"],
+                "status": result["status"],
+                "invoice_id": str(invoice.id),
+                "invoice_paid": result["invoice_paid"],
+                "payment_method_attached": result["payment_method_attached"],
+                "event_id": result.get("event_id", ""),
+            },
+            status=response_status,
+        )
+
+
+def _invoice_for_checkout_reference(
+    *,
+    customer: Customer,
+    order_reference: str,
+    invoice_id: str = "",
+) -> Invoice | None:
+    qs = customer.invoices.all()
+    if invoice_id:
+        try:
+            return qs.get(id=invoice_id)
+        except (Invoice.DoesNotExist, ValueError):
+            return None
+
+    if order_reference.startswith("checkout-"):
+        possible_invoice_id = order_reference.removeprefix("checkout-")
+        try:
+            return qs.get(id=UUID(possible_invoice_id))
+        except (Invoice.DoesNotExist, ValueError):
+            pass
+
+    for invoice in qs.order_by("-created_at")[:50]:
+        metadata = invoice.metadata if isinstance(invoice.metadata, dict) else {}
+        references = {
+            str(metadata.get("nomba_checkout_order_reference") or ""),
+            f"checkout-{invoice.id}",
+        }
+        checkout_metadata = metadata.get("nomba_checkout_metadata")
+        if isinstance(checkout_metadata, dict):
+            references.add(str(checkout_metadata.get("subpilot_idempotency_key") or "").replace(":", "-"))
+        if order_reference in references:
+            return invoice
+    return None
 
 
 class PortalSetDefaultPaymentMethodView(_PortalView):

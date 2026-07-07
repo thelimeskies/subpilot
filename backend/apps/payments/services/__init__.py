@@ -12,6 +12,7 @@ from .ledger import (
 from .nomba import (
     activate_nomba_environment,
     charge_nomba_tokenized_card,
+    confirm_nomba_tokenized_checkout,
     create_nomba_tokenized_checkout,
     create_nomba_virtual_account,
     get_nomba_client,
@@ -29,6 +30,7 @@ __all__ = [
     "charge_invoice",
     "activate_nomba_environment",
     "charge_nomba_tokenized_card",
+    "confirm_nomba_tokenized_checkout",
     "create_nomba_tokenized_checkout",
     "create_nomba_virtual_account",
     "get_nomba_client",

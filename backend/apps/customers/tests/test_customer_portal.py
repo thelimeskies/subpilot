@@ -285,3 +285,92 @@ def test_portal_rejects_direct_nomba_card_token_attachment():
 
     assert response.status_code == 400, response.content
     assert response.json()["reason"] == "Use the hosted Nomba checkout endpoint to attach Nomba cards."
+
+
+def test_portal_checkout_confirm_polls_nomba_and_saves_tokenized_card(monkeypatch):
+    user, customer = _setup_workspace()
+    environment = customer.environment
+    environment.nomba_integration_mode = Environment.NombaIntegrationMode.BYOK
+    environment.nomba_account_id = "acct_123"
+    environment.nomba_client_id = "client_123"
+    environment.nomba_client_secret = "secret_123"
+    environment.nomba_access_token = "access-token"
+    environment.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    environment.save(
+        update_fields=[
+            "nomba_integration_mode",
+            "nomba_account_id",
+            "nomba_client_id",
+            "nomba_client_secret_encrypted",
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+    invoice = customer.invoices.get(number="INV-PORTAL-001")
+    order_reference = f"checkout-{invoice.id}"
+    invoice.metadata = {"nomba_checkout_order_reference": order_reference}
+    invoice.save(update_fields=["metadata", "updated_at"])
+    client = _signed_in_client(user)
+    token, _session = _portal_token(
+        client,
+        customer,
+        actions=["view_subscriptions", "view_invoices", "update_payment_method"],
+    )
+    seen = {}
+
+    def fake_urlopen(req, timeout):
+        seen["method"] = req.get_method()
+        seen["url"] = req.full_url
+        return _NombaResponse(
+            {
+                "code": "00",
+                "description": "checkout order fetched",
+                "data": {
+                    "orderReference": order_reference,
+                    "amount": "15000.00",
+                    "currency": "NGN",
+                    "orderMetaData": {
+                        "invoice_id": str(invoice.id),
+                        "customer_id": str(customer.id),
+                        "subscription_id": str(invoice.subscription_id),
+                    },
+                    "transaction": {
+                        "transactionId": "txn_poll_123",
+                        "transactionAmount": "15000.00",
+                        "responseCode": "00",
+                        "responseMessage": "Successful",
+                    },
+                    "tokenizedCardData": {
+                        "tokenKey": "tok_nomba_poll_saved_card",
+                        "cardType": "Visa",
+                        "cardPan": "411111******4242",
+                        "tokenExpirationDate": "12/30",
+                    },
+                },
+            }
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    response = APIClient().post(
+        "/api/v1/portal/payment-methods/checkout/confirm",
+        data={"order_reference": order_reference, "invoice_id": str(invoice.id)},
+        format="json",
+        HTTP_AUTHORIZATION=f"Portal {token}",
+    )
+
+    assert response.status_code == 200, response.content
+    assert response.json()["confirmed"] is True
+    assert response.json()["invoice_paid"] is True
+    assert response.json()["payment_method_attached"] is True
+    assert seen["method"] == "GET"
+    assert seen["url"] == f"https://sandbox.nomba.com/v1/checkout/order/{order_reference}"
+    payment_method = PaymentMethod.objects.get(
+        customer=customer,
+        provider=PaymentMethod.Provider.NOMBA,
+    )
+    assert payment_method.token == "tok_nomba_poll_saved_card"
+    assert payment_method.is_default is True
+    invoice.refresh_from_db()
+    assert invoice.status == Invoice.Status.PAID

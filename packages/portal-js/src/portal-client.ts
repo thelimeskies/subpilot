@@ -111,6 +111,15 @@ export interface PortalPaymentMethodCheckout {
   processor: "nomba";
 }
 
+export interface PortalPaymentMethodCheckoutConfirmation {
+  confirmed: boolean;
+  status: string;
+  invoiceId: string;
+  invoicePaid: boolean;
+  paymentMethodAttached: boolean;
+  eventId: string;
+}
+
 interface BackendContext {
   customer: {
     id: string;
@@ -171,6 +180,7 @@ interface BackendContext {
 export interface SubPilotPortalClient {
   loadPortal(token: string): Promise<PortalData>;
   createPaymentMethodCheckout(token: string, invoiceId?: string): Promise<PortalPaymentMethodCheckout>;
+  confirmPaymentMethodCheckout(token: string, payload: { orderReference?: string; orderId?: string; invoiceId?: string }): Promise<PortalPaymentMethodCheckoutConfirmation>;
   setDefaultPaymentMethod(token: string, methodId: string): Promise<void>;
   payInvoice(token: string, invoiceId: string): Promise<void>;
   cancelSubscription(token: string, subscriptionId: string): Promise<void>;
@@ -228,6 +238,31 @@ export function createSubPilotPortalClient(options: SubPilotPortalOptions): SubP
         checkoutUrl: body.checkout_url,
         invoiceId: body.invoice_id,
         processor: body.processor
+      };
+    },
+    async confirmPaymentMethodCheckout(token, payload) {
+      const body = await portalRequest<{
+        confirmed: boolean;
+        status: string;
+        invoice_id: string;
+        invoice_paid: boolean;
+        payment_method_attached: boolean;
+        event_id: string;
+      }>(token, "/portal/payment-methods/checkout/confirm", {
+        method: "POST",
+        json: {
+          order_reference: payload.orderReference,
+          order_id: payload.orderId,
+          invoice_id: payload.invoiceId
+        }
+      });
+      return {
+        confirmed: body.confirmed,
+        status: body.status,
+        invoiceId: body.invoice_id,
+        invoicePaid: body.invoice_paid,
+        paymentMethodAttached: body.payment_method_attached,
+        eventId: body.event_id
       };
     },
     async setDefaultPaymentMethod(token, methodId) {

@@ -407,6 +407,193 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
     return response
 
 
+def confirm_nomba_tokenized_checkout(
+    *,
+    invoice: Invoice,
+    order_reference: str,
+    request=None,
+) -> dict[str, Any]:
+    """Poll Nomba for a hosted tokenized checkout and apply it if complete.
+
+    This is a fallback for environments where Nomba webhooks are delayed or not
+    yet deliverable. It intentionally reuses ``process_processor_event`` so the
+    side effects match the webhook path: attach tokenized card data when
+    available, set the customer's default method, activate the subscription, and
+    mark the invoice paid.
+    """
+    response = _get_nomba_checkout_order(invoice=invoice, order_reference=order_reference)
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    tokenized_card = _find_nested_dict(data, "tokenizedCardData") or _find_nested_dict(
+        data, "tokenized_card_data"
+    )
+    status_label, confirmed = _checkout_payment_status(data, tokenized_card=tokenized_card)
+    if not confirmed:
+        return {
+            "confirmed": False,
+            "status": status_label or "pending",
+            "invoice_paid": invoice.status == Invoice.Status.PAID,
+            "payment_method_attached": bool(invoice.customer.payment_methods.filter(provider=PaymentMethod.Provider.NOMBA).exists()),
+            "raw": response,
+        }
+
+    raw_event = _checkout_order_response_as_webhook_payload(
+        invoice=invoice,
+        order_reference=order_reference,
+        response=response,
+        tokenized_card=tokenized_card,
+    )
+    from apps.payments.adapters import get_adapter
+
+    from .process_processor_event import process_processor_event
+
+    parsed = get_adapter("nomba").parse_webhook(payload=raw_event)
+    event = process_processor_event(
+        merchant=invoice.merchant,
+        environment=invoice.environment,
+        parsed=parsed,
+        request=request,
+    )
+    invoice.refresh_from_db()
+    return {
+        "confirmed": True,
+        "status": "payment.succeeded",
+        "invoice_paid": invoice.status == Invoice.Status.PAID,
+        "payment_method_attached": bool(
+            invoice.customer.payment_methods.filter(provider=PaymentMethod.Provider.NOMBA).exists()
+        ),
+        "event_id": str(event.id),
+        "raw": response,
+    }
+
+
+def _get_nomba_checkout_order(*, invoice: Invoice, order_reference: str) -> dict[str, Any]:
+    client = get_nomba_client(invoice.environment)
+    references = [order_reference]
+    metadata = invoice.metadata if isinstance(invoice.metadata, dict) else {}
+    stored_reference = str(metadata.get("nomba_checkout_order_reference") or "")
+    stable_reference = f"checkout-{invoice.id}"
+    for candidate in (stored_reference, stable_reference):
+        if candidate and candidate not in references:
+            references.append(candidate)
+
+    last_error: NombaError | None = None
+    for reference in references:
+        try:
+            return client.get_checkout_order(reference)
+        except NombaError as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    raise ServiceError("No Nomba checkout reference is available for this invoice.")
+
+
+def _checkout_order_response_as_webhook_payload(
+    *,
+    invoice: Invoice,
+    order_reference: str,
+    response: dict[str, Any],
+    tokenized_card: dict[str, Any],
+) -> dict[str, Any]:
+    data = response.get("data") if isinstance(response.get("data"), dict) else {}
+    transaction = _find_nested_dict(data, "transaction") or {}
+    transaction_id = str(
+        transaction.get("transactionId")
+        or transaction.get("transaction_id")
+        or data.get("transactionId")
+        or data.get("transaction_id")
+        or data.get("reference")
+        or order_reference
+    )
+    metadata = {
+        "invoice_id": str(invoice.id),
+        "customer_id": str(invoice.customer_id),
+        "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
+        "subpilot_idempotency_key": f"checkout:{invoice.id}",
+    }
+    event_data = {
+        **data,
+        "currency": data.get("currency") or invoice.currency,
+        "amount": data.get("amount") or _major_units(invoice.amount_due_minor or invoice.total_minor),
+        "orderReference": data.get("orderReference") or order_reference,
+        "orderMetaData": data.get("orderMetaData") if isinstance(data.get("orderMetaData"), dict) else metadata,
+        "transaction": {
+            **transaction,
+            "transactionId": transaction_id,
+            "transactionAmount": (
+                transaction.get("transactionAmount")
+                or data.get("amount")
+                or _major_units(invoice.amount_due_minor or invoice.total_minor)
+            ),
+            "responseCode": transaction.get("responseCode") or "00",
+            "responseMessage": transaction.get("responseMessage") or "Payment confirmed by checkout polling",
+        },
+    }
+    if tokenized_card:
+        event_data["tokenizedCardData"] = tokenized_card
+    return {
+        "event_type": "payment_success",
+        "requestId": str(data.get("requestId") or data.get("request_id") or f"poll:{order_reference}"),
+        "data": event_data,
+    }
+
+
+def _checkout_payment_status(
+    data: dict[str, Any],
+    *,
+    tokenized_card: dict[str, Any],
+) -> tuple[str, bool]:
+    if tokenized_card.get("tokenKey"):
+        return "tokenized", True
+
+    transaction = _find_nested_dict(data, "transaction") or {}
+    response_code = str(
+        transaction.get("responseCode")
+        or transaction.get("response_code")
+        or data.get("responseCode")
+        or data.get("response_code")
+        or ""
+    ).strip()
+    if response_code == "00":
+        return "successful", True
+
+    for value in (
+        transaction.get("status"),
+        transaction.get("paymentStatus"),
+        transaction.get("transactionStatus"),
+        data.get("paymentStatus"),
+        data.get("payment_status"),
+        data.get("transactionStatus"),
+        data.get("transaction_status"),
+        data.get("orderStatus"),
+        data.get("order_status"),
+    ):
+        label = str(value or "").strip().lower()
+        if label in {"success", "successful", "paid", "completed", "complete", "approved"}:
+            return label, True
+        if label:
+            return label, False
+    return "", False
+
+
+def _find_nested_dict(value: Any, key: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    direct = value.get(key)
+    if isinstance(direct, dict):
+        return direct
+    for child in value.values():
+        if isinstance(child, dict):
+            found = _find_nested_dict(child, key)
+            if found:
+                return found
+        elif isinstance(child, list):
+            for item in child:
+                found = _find_nested_dict(item, key)
+                if found:
+                    return found
+    return {}
+
+
 def charge_nomba_tokenized_card(*, invoice: Invoice, payment_method: PaymentMethod, idempotency_key: str) -> dict[str, Any]:
     client = get_nomba_client(invoice.environment)
     order_reference = idempotency_key.replace(":", "-")

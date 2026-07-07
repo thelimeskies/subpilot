@@ -108,6 +108,12 @@ def _route_event(
         if invoice is None:
             return
         attempt = _latest_pending_attempt(invoice)
+        if attempt is None and invoice.status == Invoice.Status.PAID:
+            if PaymentAttempt.objects.filter(
+                invoice=invoice,
+                status=PaymentAttempt.Status.SUCCEEDED,
+            ).exists():
+                return
         if attempt is not None:
             attempt.status = PaymentAttempt.Status.SUCCEEDED
             if reference:
