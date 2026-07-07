@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.utils import timezone
@@ -397,6 +398,7 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
     data = response.get("data") if isinstance(response.get("data"), dict) else {}
     checkout_url = str(data.get("checkoutLink") or "")
     nomba_reference = str(data.get("orderReference") or order_reference)
+    checkout_id = _checkout_id_from_url(checkout_url)
     if not checkout_url:
         attempt.status = PaymentAttempt.Status.FAILED
         attempt.failure_code = str(response.get("code") or "processor_error")[:64]
@@ -410,6 +412,7 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
         **(attempt.metadata or {}),
         "source": "nomba_hosted_checkout",
         "checkout_url_created": bool(checkout_url),
+        "nomba_checkout_id": checkout_id,
         "local_order_reference": order_reference,
         "nomba_order_reference": nomba_reference,
     }
@@ -417,6 +420,7 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
     invoice.hosted_payment_url = checkout_url
     invoice.metadata = {
         **(invoice.metadata or {}),
+        "nomba_checkout_id": checkout_id,
         "nomba_checkout_order_reference": nomba_reference,
         "nomba_checkout_payment_attempt_id": str(attempt.id),
         "nomba_tokenize_card": True,
@@ -432,6 +436,7 @@ def create_nomba_tokenized_checkout(*, invoice: Invoice, idempotency_key: str = 
         metadata={
             "subscription_id": str(invoice.subscription_id) if invoice.subscription_id else "",
             "order_reference": nomba_reference,
+            "checkout_id": checkout_id,
             "has_checkout_url": bool(checkout_url),
         },
     )
@@ -503,6 +508,14 @@ def _next_checkout_attempt_number(invoice: Invoice) -> int:
     return (last or 0) + 1
 
 
+def _checkout_id_from_url(checkout_url: str) -> str:
+    if not checkout_url:
+        return ""
+    parsed = urlparse(checkout_url)
+    parts = [part for part in parsed.path.split("/") if part]
+    return parts[-1] if parts else ""
+
+
 def confirm_nomba_tokenized_checkout(
     *,
     invoice: Invoice,
@@ -566,9 +579,11 @@ def _get_nomba_checkout_order(*, invoice: Invoice, order_reference: str) -> dict
     client = get_nomba_client(invoice.environment)
     references = []
     metadata = invoice.metadata if isinstance(invoice.metadata, dict) else {}
+    stored_checkout_id = str(metadata.get("nomba_checkout_id") or "")
+    hosted_checkout_id = _checkout_id_from_url(invoice.hosted_payment_url or "")
     stored_reference = str(metadata.get("nomba_checkout_order_reference") or "")
     stable_reference = f"checkout-{invoice.id}"
-    for candidate in (stored_reference, order_reference, stable_reference):
+    for candidate in (stored_checkout_id, hosted_checkout_id, stored_reference, order_reference, stable_reference):
         if candidate and candidate not in references:
             references.append(candidate)
 
@@ -588,7 +603,15 @@ def _get_nomba_checkout_order(*, invoice: Invoice, order_reference: str) -> dict
     if last_error is not None:
         raise last_error
     if last_rejected:
-        raise ServiceError(f"Nomba rejected all checkout references: {last_rejected}")
+        logger.warning(
+            "payments.nomba_checkout_poll_rejected",
+            extra={
+                "invoice_id": str(invoice.id),
+                "references": references,
+                "last_rejected": last_rejected,
+            },
+        )
+        return {"code": "pending", "description": last_rejected, "status": False, "data": {}}
     raise ServiceError("No Nomba checkout reference is available for this invoice.")
 
 
