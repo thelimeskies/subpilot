@@ -6,7 +6,7 @@ Hi {{ recipient_name }},
 
 {{ message }}
 
-{% if hosted_payment_url %}Pay invoice: {{ hosted_payment_url }}
+{% if payment_url %}Pay invoice: {{ payment_url }}
 {% endif %}Invoice: {{ invoice_number }}
 Due: {{ due_at|default:"-" }}
 Amount due: {{ amount_due }}

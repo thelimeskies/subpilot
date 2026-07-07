@@ -1,12 +1,17 @@
 """Invoice delivery helpers: PDF rendering and customer reminders."""
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 from apps.audit.services.log_event import log_event
 from apps.common.email import format_email_date, merchant_email_context, send_templated_email
 from apps.common.exceptions import ServiceError
 from apps.common.money import format_money
+from apps.customers.services.create_portal_session import (
+    create_portal_session,
+    portal_session_url,
+)
 
 from ..models import Invoice
 
@@ -91,6 +96,31 @@ def build_invoice_pdf(invoice: Invoice) -> bytes:
     return bytes(pdf)
 
 
+def _payment_url_for_invoice(*, invoice: Invoice, actor_user=None, request=None) -> str:
+    if invoice.hosted_payment_url:
+        return invoice.hosted_payment_url
+    if invoice.amount_due_minor <= 0 or invoice.status not in {
+        Invoice.Status.DRAFT,
+        Invoice.Status.OPEN,
+    }:
+        return ""
+    session, token = create_portal_session(
+        customer=invoice.customer,
+        subscription=invoice.subscription,
+        invoice=invoice,
+        allowed_actions=[
+            "view_subscriptions",
+            "view_invoices",
+            "update_payment_method",
+            "pay_invoice",
+        ],
+        ttl=timedelta(days=30),
+        actor_user=actor_user,
+        request=request,
+    )
+    return portal_session_url(token)
+
+
 def send_invoice_reminder(
     *,
     invoice: Invoice,
@@ -112,6 +142,11 @@ def send_invoice_reminder(
     sent = False
     if channel == "email":
         subject = f"Reminder: invoice {invoice.number}"
+        payment_url = _payment_url_for_invoice(
+            invoice=invoice,
+            actor_user=actor_user,
+            request=request,
+        )
         send_templated_email(
             to=invoice.customer.email,
             subject=subject,
@@ -123,7 +158,7 @@ def send_invoice_reminder(
                 invoice_number=invoice.number,
                 amount_due=format_money(invoice.amount_due_minor, invoice.currency),
                 due_at=format_email_date(invoice.due_at),
-                hosted_payment_url=invoice.hosted_payment_url,
+                payment_url=payment_url,
                 message=message,
             ),
         )
@@ -141,6 +176,7 @@ def send_invoice_reminder(
             "channel": channel,
             "sent": sent,
             "recipient": invoice.customer.email if channel == "email" else invoice.customer.phone,
+            "has_payment_url": bool(payment_url) if channel == "email" else False,
         },
         request=request,
     )

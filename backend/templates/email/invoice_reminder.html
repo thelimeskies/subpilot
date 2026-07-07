@@ -7,10 +7,11 @@
   {% if message %}
     <div style="margin:0 0 24px 0; padding:14px 16px; border-radius:10px; background:#F8FAF9; color:#334155; font-size:14px; line-height:22px;">{{ message|linebreaksbr }}</div>
   {% endif %}
-  {% if hosted_payment_url %}
+  {% if payment_url %}
     <p style="margin:0 0 24px 0;">
-      <a href="{{ hosted_payment_url }}" style="display:inline-block; background:#14B8A6; color:#FFFFFF; text-decoration:none; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:700;">Pay invoice</a>
+      <a href="{{ payment_url }}" style="display:inline-block; background:#14B8A6; color:#FFFFFF; text-decoration:none; padding:14px 22px; border-radius:10px; font-size:15px; font-weight:700;">Pay invoice</a>
     </p>
+    <p style="margin:0 0 24px 0; word-break:break-all; color:#0F766E; font-size:13px; line-height:20px;">If the button doesn&rsquo;t work, paste this URL: {{ payment_url }}</p>
   {% endif %}
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse:collapse; color:#52615D; font-size:14px; line-height:22px;">
     <tr><td style="padding:12px 0; border-top:1px solid #F1F3F7;">Invoice</td><td align="right" style="padding:12px 0; border-top:1px solid #F1F3F7; color:#0B1720; font-weight:600;">{{ invoice_number }}</td></tr>

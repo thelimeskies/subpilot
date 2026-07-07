@@ -53,7 +53,7 @@ EMAIL_CASES = [
             "invoice_number": "INV-001",
             "amount_due": "NGN 12,500.00",
             "due_at": "Jun 20, 2026",
-            "hosted_payment_url": "https://pay.example/inv",
+            "payment_url": "https://pay.example/inv",
             "message": "Please complete payment.",
         },
         "Invoice INV-001",
