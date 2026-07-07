@@ -23,6 +23,7 @@ from apps.payments.services.nomba import (
     nomba_routing_account_id_for_environment,
     nomba_sub_account_id_for_environment,
 )
+from apps.platform_admin.services.settings import update_settings
 
 pytestmark = pytest.mark.django_db
 
@@ -277,6 +278,32 @@ def test_live_calls_require_explicit_activation():
 
     with pytest.raises(NombaLiveNotActiveError):
         client.list_accounts()
+
+
+def test_platform_managed_live_credentials_are_read_from_platform_admin_settings(platform_admin_owner):
+    env = _environment("live", byok=False)
+    update_settings(
+        actor=platform_admin_owner,
+        nomba_platform={
+            "liveActive": True,
+            "live": {
+                "baseUrl": "https://live.nomba.test",
+                "accountId": "platform-live-account",
+                "subAccountId": "platform-live-sub",
+                "clientId": "platform-live-client",
+                "clientSecret": "platform-live-secret",
+            },
+        },
+    )
+
+    creds = credentials_for_environment(env)
+
+    assert creds.base_url == "https://live.nomba.test"
+    assert creds.account_id == "platform-live-account"
+    assert creds.client_id == "platform-live-client"
+    assert creds.client_secret == "platform-live-secret"
+    assert creds.live_active is True
+    assert NombaClient(environment=env, credentials=creds).routing_account_id() == "platform-live-sub"
 
 
 @override_settings(

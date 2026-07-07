@@ -251,6 +251,21 @@ def _platform_environment_for_identifier(identifier: str) -> Environment | None:
         getattr(settings, "NOMBA_PLATFORM_LIVE_ACCOUNT_ID", ""): Environment.Mode.LIVE,
         getattr(settings, "NOMBA_PLATFORM_LIVE_SUB_ACCOUNT_ID", ""): Environment.Mode.LIVE,
     }
+    try:
+        from apps.platform_admin.selectors.settings import get_platform_nomba_config
+
+        test_config = get_platform_nomba_config(Environment.Mode.TEST)
+        live_config = get_platform_nomba_config(Environment.Mode.LIVE)
+        platform_map.update(
+            {
+                str(test_config.get("account_id") or ""): Environment.Mode.TEST,
+                str(test_config.get("sub_account_id") or ""): Environment.Mode.TEST,
+                str(live_config.get("account_id") or ""): Environment.Mode.LIVE,
+                str(live_config.get("sub_account_id") or ""): Environment.Mode.LIVE,
+            }
+        )
+    except Exception:
+        pass
     mode = platform_map.get(identifier)
     if not mode:
         return None
@@ -784,9 +799,17 @@ class CentralNombaWebhookView(APIView):
         raw_body = request.body or b""
         signature = _processor_webhook_signature(request)
         timestamp = _processor_webhook_timestamp(request)
-        secret = getattr(settings, "NOMBA_WEBHOOK_SECRET", "") or ""
+        try:
+            from apps.platform_admin.selectors.settings import platform_nomba_webhook_secrets
 
-        if not secret:
+            secrets = platform_nomba_webhook_secrets()
+        except Exception:
+            secrets = []
+        secret = getattr(settings, "NOMBA_WEBHOOK_SECRET", "") or ""
+        if secret and secret not in secrets:
+            secrets.append(secret)
+
+        if not secrets:
             logger.error("payments.central_nomba_webhook_secret_missing")
             response = Response(
                 {"detail": "Webhook endpoint is not configured."},
@@ -802,11 +825,14 @@ class CentralNombaWebhookView(APIView):
                 failure_reason="missing_secret",
             )
 
-        if not adapter.verify_webhook(
-            payload=raw_body,
-            signature=signature,
-            secret=secret,
-            timestamp=timestamp,
+        if not any(
+            adapter.verify_webhook(
+                payload=raw_body,
+                signature=signature,
+                secret=candidate,
+                timestamp=timestamp,
+            )
+            for candidate in secrets
         ):
             logger.warning("payments.central_nomba_webhook_signature_invalid")
             response = Response(

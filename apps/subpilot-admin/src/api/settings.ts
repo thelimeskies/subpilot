@@ -64,6 +64,25 @@ export interface PlatformPolicy {
   [k: string]: unknown;
 }
 
+export interface NombaModeConfig {
+  baseUrl: string;
+  accountId: string;
+  subAccountId: string;
+  clientId: string;
+  hasClientSecret: boolean;
+  hasWebhookSecret: boolean;
+}
+
+export interface NombaLiveModeConfig extends NombaModeConfig {
+  liveActive: boolean;
+}
+
+export interface NombaPlatformConfig {
+  activeMode: "test" | "live";
+  test: NombaModeConfig;
+  live: NombaLiveModeConfig;
+}
+
 export interface AdapterRow {
   name: string;
   role: string;
@@ -78,6 +97,7 @@ export interface PlatformSettings {
   id: string;
   key: string;
   policy: PlatformPolicy;
+  nombaPlatform: NombaPlatformConfig;
   adapterStatus: AdapterRow[];
   updatedAt: string;
 }
@@ -90,6 +110,12 @@ interface ReadResponse {
 
 export interface UpdateSettingsInput {
   policy?: Partial<PlatformPolicy>;
+  nombaPlatform?: {
+    activeMode?: "test" | "live";
+    liveActive?: boolean;
+    test?: Partial<NombaModeConfig> & { clientSecret?: string; webhookSecret?: string };
+    live?: Partial<NombaModeConfig> & { clientSecret?: string; webhookSecret?: string };
+  };
   adapterStatus?: AdapterRow[];
 }
 
@@ -131,6 +157,7 @@ export function useSettings(): UseSettingsResult {
     async (input: UpdateSettingsInput): Promise<PlatformSettings> => {
       const payload: Record<string, unknown> = {};
       if (input.policy !== undefined) payload.policy = input.policy;
+      if (input.nombaPlatform !== undefined) payload.nomba_platform = input.nombaPlatform;
       if (input.adapterStatus !== undefined) payload.adapter_status = input.adapterStatus;
       const body = await api.patch<ReadResponse>("/platform/settings", payload);
       if (!body.ok) throw new Error(body.reason || "Update failed.");

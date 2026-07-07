@@ -44,6 +44,9 @@ class PlatformSettingsView(APIView):
         adapter_status = data.get("adapter_status")
         if adapter_status is None:
             adapter_status = data.get("adapterStatus")
+        nomba_platform = data.get("nomba_platform")
+        if nomba_platform is None:
+            nomba_platform = data.get("nombaPlatform")
 
         try:
             row = update_settings(
@@ -51,6 +54,7 @@ class PlatformSettingsView(APIView):
                 request=request,
                 policy=data.get("policy") if "policy" in data else None,
                 adapter_status=adapter_status if adapter_status is not None else None,
+                nomba_platform=nomba_platform if nomba_platform is not None else None,
             )
         except SettingFieldError as exc:
             msg = str(exc)

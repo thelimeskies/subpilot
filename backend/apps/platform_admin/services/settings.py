@@ -11,6 +11,7 @@ from typing import Any
 from django.db import transaction
 
 from apps.audit.services.log_event import log_event
+from apps.common.crypto import encrypt
 
 from ..models import PlatformAdmin, PlatformAdminRole, PlatformSetting
 from ..selectors.settings import (
@@ -43,6 +44,54 @@ def _diff_policy(before: dict[str, Any], after: dict[str, Any]) -> dict[str, dic
     return changes
 
 
+def _clean_str(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _merge_nomba_platform_config(before_policy: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise SettingFieldError("nomba_platform must be an object.")
+    merged = dict(before_policy)
+    active_mode = payload.get("activeMode", payload.get("active_mode"))
+    if active_mode is not None:
+        if active_mode not in {"test", "live"}:
+            raise SettingFieldError("nomba_platform.activeMode must be test or live.")
+        merged["nombaPlatformActiveMode"] = active_mode
+    live_active = payload.get("liveActive", payload.get("live_active"))
+    if live_active is not None:
+        merged["nombaPlatformLiveActive"] = bool(live_active)
+
+    for mode in ("test", "live"):
+        source = payload.get(mode)
+        if source is None:
+            continue
+        if not isinstance(source, dict):
+            raise SettingFieldError(f"nomba_platform.{mode} must be an object.")
+        prefix = "Live" if mode == "live" else "Test"
+        mapping = {
+            "baseUrl": f"nombaPlatform{prefix}BaseUrl",
+            "base_url": f"nombaPlatform{prefix}BaseUrl",
+            "accountId": f"nombaPlatform{prefix}AccountId",
+            "account_id": f"nombaPlatform{prefix}AccountId",
+            "subAccountId": f"nombaPlatform{prefix}SubAccountId",
+            "sub_account_id": f"nombaPlatform{prefix}SubAccountId",
+            "clientId": f"nombaPlatform{prefix}ClientId",
+            "client_id": f"nombaPlatform{prefix}ClientId",
+        }
+        for incoming_key, policy_key in mapping.items():
+            if incoming_key in source:
+                merged[policy_key] = _clean_str(source[incoming_key])
+        if source.get("clientSecret") or source.get("client_secret"):
+            merged[f"nombaPlatform{prefix}ClientSecretEncrypted"] = encrypt(
+                _clean_str(source.get("clientSecret") or source.get("client_secret"))
+            )
+        if source.get("webhookSecret") or source.get("webhook_secret"):
+            merged[f"nombaPlatform{prefix}WebhookSecretEncrypted"] = encrypt(
+                _clean_str(source.get("webhookSecret") or source.get("webhook_secret"))
+            )
+    return merged
+
+
 @transaction.atomic
 def update_settings(
     *,
@@ -50,6 +99,7 @@ def update_settings(
     request=None,
     policy: dict[str, Any] | None = None,
     adapter_status: list[dict[str, Any]] | None = None,
+    nomba_platform: dict[str, Any] | None = None,
 ) -> PlatformSetting:
     """Owner-only patch of policy + adapter_status.
 
@@ -94,6 +144,27 @@ def update_settings(
             changed_metadata["adapter_status"] = {
                 "from_count": len(before_adapters),
                 "to_count": len(adapter_status),
+            }
+
+    if nomba_platform is not None:
+        merged = _merge_nomba_platform_config(row.policy or {}, nomba_platform)
+        if merged != (row.policy or {}):
+            row.policy = merged
+            if "policy" not in update_fields:
+                update_fields.append("policy")
+            changed_metadata["nomba_platform"] = {
+                "active_mode": merged.get("nombaPlatformActiveMode", "test"),
+                "live_active": bool(merged.get("nombaPlatformLiveActive")),
+                "test_configured": bool(
+                    merged.get("nombaPlatformTestAccountId")
+                    and merged.get("nombaPlatformTestClientId")
+                    and merged.get("nombaPlatformTestClientSecretEncrypted")
+                ),
+                "live_configured": bool(
+                    merged.get("nombaPlatformLiveAccountId")
+                    and merged.get("nombaPlatformLiveClientId")
+                    and merged.get("nombaPlatformLiveClientSecretEncrypted")
+                ),
             }
 
     if update_fields:

@@ -31,10 +31,10 @@ import { useAuth, usePlatformPermissions } from "../auth/AuthContext";
 import { PageHeader } from "../components/PageHeader";
 import { useFeedback } from "../feedback/ActionFeedback";
 import { api } from "../api/client";
-import { useSettings, type AdapterRow, type PlatformPolicy } from "../api/settings";
+import { useSettings, type AdapterRow, type NombaPlatformConfig, type PlatformPolicy } from "../api/settings";
 import { useAuditLog, type AuditCategory } from "../api/audit";
 
-type TabKey = "platform" | "adapters" | "webhooks" | "security" | "data" | "branding" | "audit" | "profile";
+type TabKey = "platform" | "nomba" | "adapters" | "webhooks" | "security" | "data" | "branding" | "audit" | "profile";
 
 // Mirrors backend selectors.settings.DEFAULT_POLICY so the page renders
 // without a flash of empty fields while the hook is still loading.
@@ -97,6 +97,27 @@ const FALLBACK_POLICY: PlatformPolicy = {
   dunningAutoPauseD10: true,
 };
 
+const FALLBACK_NOMBA_PLATFORM: NombaPlatformConfig = {
+  activeMode: "test",
+  test: {
+    baseUrl: "https://sandbox.nomba.com",
+    accountId: "",
+    subAccountId: "",
+    clientId: "",
+    hasClientSecret: false,
+    hasWebhookSecret: false,
+  },
+  live: {
+    baseUrl: "https://api.nomba.com",
+    accountId: "",
+    subAccountId: "",
+    clientId: "",
+    hasClientSecret: false,
+    hasWebhookSecret: false,
+    liveActive: false,
+  },
+};
+
 export function SettingsPage() {
   const { user, signOut, updateProfile } = useAuth();
   const { canEditSettings } = usePlatformPermissions();
@@ -107,6 +128,10 @@ export function SettingsPage() {
   const { settings, loading, error, update } = useSettings();
   const policy: PlatformPolicy = useMemo(
     () => ({ ...FALLBACK_POLICY, ...(settings?.policy ?? {}) }),
+    [settings],
+  );
+  const nombaPlatform: NombaPlatformConfig = useMemo(
+    () => settings?.nombaPlatform ?? FALLBACK_NOMBA_PLATFORM,
     [settings],
   );
   const adapters: AdapterRow[] = settings?.adapterStatus ?? [];
@@ -135,6 +160,23 @@ export function SettingsPage() {
   const [retryTimeout, setRetryTimeout] = useState<string>(String(policy.webhookTimeoutSeconds));
   const [retryConcurrency, setRetryConcurrency] = useState<string>(String(policy.webhookConcurrencyPerMerchant));
   const [savingPolicy, setSavingPolicy] = useState(false);
+
+  // --- Platform-managed Nomba config -------------------------------------
+  const [nombaActiveMode, setNombaActiveMode] = useState<"test" | "live">(nombaPlatform.activeMode);
+  const [nombaTestBaseUrl, setNombaTestBaseUrl] = useState(nombaPlatform.test.baseUrl);
+  const [nombaTestAccountId, setNombaTestAccountId] = useState(nombaPlatform.test.accountId);
+  const [nombaTestSubAccountId, setNombaTestSubAccountId] = useState(nombaPlatform.test.subAccountId);
+  const [nombaTestClientId, setNombaTestClientId] = useState(nombaPlatform.test.clientId);
+  const [nombaTestClientSecret, setNombaTestClientSecret] = useState("");
+  const [nombaTestWebhookSecret, setNombaTestWebhookSecret] = useState("");
+  const [nombaLiveBaseUrl, setNombaLiveBaseUrl] = useState(nombaPlatform.live.baseUrl);
+  const [nombaLiveAccountId, setNombaLiveAccountId] = useState(nombaPlatform.live.accountId);
+  const [nombaLiveSubAccountId, setNombaLiveSubAccountId] = useState(nombaPlatform.live.subAccountId);
+  const [nombaLiveClientId, setNombaLiveClientId] = useState(nombaPlatform.live.clientId);
+  const [nombaLiveClientSecret, setNombaLiveClientSecret] = useState("");
+  const [nombaLiveWebhookSecret, setNombaLiveWebhookSecret] = useState("");
+  const [nombaLiveActive, setNombaLiveActive] = useState(nombaPlatform.live.liveActive);
+  const [savingNomba, setSavingNomba] = useState(false);
 
   // --- Webhook signing config sheet state -------------------------------
   const [signingHeader, setSigningHeader] = useState<string>(policy.webhookSignatureHeader);
@@ -196,6 +238,34 @@ export function SettingsPage() {
     policy.webhookSignatureAlgorithm,
     policy.webhookTimestampToleranceSeconds,
     policy.webhookReplayWindowMinutes,
+  ]);
+
+  useEffect(() => {
+    setNombaActiveMode(nombaPlatform.activeMode);
+    setNombaTestBaseUrl(nombaPlatform.test.baseUrl);
+    setNombaTestAccountId(nombaPlatform.test.accountId);
+    setNombaTestSubAccountId(nombaPlatform.test.subAccountId);
+    setNombaTestClientId(nombaPlatform.test.clientId);
+    setNombaTestClientSecret("");
+    setNombaTestWebhookSecret("");
+    setNombaLiveBaseUrl(nombaPlatform.live.baseUrl);
+    setNombaLiveAccountId(nombaPlatform.live.accountId);
+    setNombaLiveSubAccountId(nombaPlatform.live.subAccountId);
+    setNombaLiveClientId(nombaPlatform.live.clientId);
+    setNombaLiveClientSecret("");
+    setNombaLiveWebhookSecret("");
+    setNombaLiveActive(nombaPlatform.live.liveActive);
+  }, [
+    nombaPlatform.activeMode,
+    nombaPlatform.test.baseUrl,
+    nombaPlatform.test.accountId,
+    nombaPlatform.test.subAccountId,
+    nombaPlatform.test.clientId,
+    nombaPlatform.live.baseUrl,
+    nombaPlatform.live.accountId,
+    nombaPlatform.live.subAccountId,
+    nombaPlatform.live.clientId,
+    nombaPlatform.live.liveActive,
   ]);
 
   useEffect(() => {
@@ -457,6 +527,64 @@ export function SettingsPage() {
     }
   }
 
+  async function handleSaveNombaPlatformConfig(nextLiveActive = nombaLiveActive, nextActiveMode = nombaActiveMode) {
+    setSavingNomba(true);
+    try {
+      await update({
+        nombaPlatform: {
+          activeMode: nextActiveMode,
+          liveActive: nextLiveActive,
+          test: {
+            baseUrl: nombaTestBaseUrl.trim(),
+            accountId: nombaTestAccountId.trim(),
+            subAccountId: nombaTestSubAccountId.trim(),
+            clientId: nombaTestClientId.trim(),
+            clientSecret: nombaTestClientSecret.trim(),
+            webhookSecret: nombaTestWebhookSecret.trim(),
+          },
+          live: {
+            baseUrl: nombaLiveBaseUrl.trim(),
+            accountId: nombaLiveAccountId.trim(),
+            subAccountId: nombaLiveSubAccountId.trim(),
+            clientId: nombaLiveClientId.trim(),
+            clientSecret: nombaLiveClientSecret.trim(),
+            webhookSecret: nombaLiveWebhookSecret.trim(),
+          },
+        },
+      });
+      setNombaTestClientSecret("");
+      setNombaTestWebhookSecret("");
+      setNombaLiveClientSecret("");
+      setNombaLiveWebhookSecret("");
+      notify({
+        tone: "success",
+        title: "Nomba platform config saved",
+        description: nextActiveMode === "live" ? "Live is now the selected platform Nomba mode." : "Sandbox remains the selected platform Nomba mode.",
+      });
+    } catch (err) {
+      notify({
+        tone: "danger",
+        title: "Could not save Nomba config",
+        description: err instanceof Error ? err.message : "Try again.",
+      });
+    } finally {
+      setSavingNomba(false);
+    }
+  }
+
+  async function handleActivateLiveNomba() {
+    const ok = await confirm({
+      title: "Activate live Nomba platform mode?",
+      description: "SubPilot will allow platform-managed live Nomba API calls using the live account and client credentials stored here.",
+      confirmLabel: "Activate live",
+      destructive: true,
+    });
+    if (!ok) return;
+    setNombaLiveActive(true);
+    setNombaActiveMode("live");
+    await handleSaveNombaPlatformConfig(true, "live");
+  }
+
   // ----- Adapters tab routing strategy -----------------------------------
   async function handleChangeRoutingStrategy(next: string) {
     setRoutingStrategy(next);
@@ -641,6 +769,7 @@ export function SettingsPage() {
         onChange={(v) => setTab(v as TabKey)}
         items={[
           { label: "Platform", value: "platform" },
+          { label: "Nomba", value: "nomba" },
           { label: "Adapters", value: "adapters", count: adapters.length },
           { label: "Webhooks", value: "webhooks" },
           { label: "Security", value: "security" },
@@ -732,6 +861,139 @@ export function SettingsPage() {
                 <tr><td>5</td><td>D+10</td><td>System</td><td>Subscription paused</td></tr>
               </tbody>
             </table>
+          </Card>
+        </section>
+      ) : null}
+
+      {tab === "nomba" ? (
+        <section className="sp-panel-layout">
+          <Card>
+            <CardHeader
+              title="Platform-managed Nomba"
+              description="Central credentials used when merchant environments are set to Platform-managed."
+              action={
+                <Badge tone={nombaActiveMode === "live" ? (nombaLiveActive ? "success" : "warning") : "info"}>
+                  {nombaActiveMode === "live" ? (nombaLiveActive ? "Live active" : "Live selected") : "Sandbox selected"}
+                </Badge>
+              }
+            />
+            <dl className="adm-defs">
+              <div><dt>Selected mode</dt><dd>{nombaActiveMode === "live" ? "Live" : "Sandbox"}</dd></div>
+              <div><dt>Live calls</dt><dd>{nombaLiveActive ? "Enabled" : "Locked"}</dd></div>
+              <div><dt>Sandbox account</dt><dd>{nombaPlatform.test.accountId || "Not set"}</dd></div>
+              <div><dt>Live account</dt><dd>{nombaPlatform.live.accountId || "Not set"}</dd></div>
+              <div><dt>Sandbox webhook key</dt><dd>{nombaPlatform.test.hasWebhookSecret ? "Stored" : "Missing"}</dd></div>
+              <div><dt>Live webhook key</dt><dd>{nombaPlatform.live.hasWebhookSecret ? "Stored" : "Missing"}</dd></div>
+            </dl>
+            <Field label="Selected platform mode">
+              <SegmentedControl
+                label="Selected platform mode"
+                value={nombaActiveMode}
+                onChange={(v) => setNombaActiveMode(v as "test" | "live")}
+                items={[
+                  { label: "Sandbox", value: "test" },
+                  { label: "Live", value: "live" },
+                ]}
+              />
+            </Field>
+            <ul className="adm-toggle-list">
+              <li className="adm-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={nombaLiveActive}
+                  onChange={(e) => setNombaLiveActive(e.target.checked)}
+                  disabled={!canEditSettings}
+                />
+                <strong>Allow platform-managed live Nomba API calls</strong>
+                <Badge tone={nombaLiveActive ? "success" : "warning"}>{nombaLiveActive ? "Enabled" : "Locked"}</Badge>
+              </li>
+            </ul>
+          </Card>
+
+          <Card>
+            <CardHeader title="Sandbox credentials" description="Used for platform-managed test environments and Nomba sandbox checkout." />
+            <div className="adm-form-grid">
+              <Field label="Base URL">
+                <TextInput value={nombaTestBaseUrl} onChange={(e) => setNombaTestBaseUrl(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Parent account ID">
+                <TextInput value={nombaTestAccountId} onChange={(e) => setNombaTestAccountId(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Sub-account ID">
+                <TextInput value={nombaTestSubAccountId} onChange={(e) => setNombaTestSubAccountId(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Client ID">
+                <TextInput value={nombaTestClientId} onChange={(e) => setNombaTestClientId(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Client secret">
+                <TextInput
+                  type="password"
+                  value={nombaTestClientSecret}
+                  onChange={(e) => setNombaTestClientSecret(e.target.value)}
+                  placeholder={nombaPlatform.test.hasClientSecret ? "Stored secret unchanged" : "Enter sandbox client secret"}
+                  disabled={!canEditSettings}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="Webhook signing key">
+                <TextInput
+                  type="password"
+                  value={nombaTestWebhookSecret}
+                  onChange={(e) => setNombaTestWebhookSecret(e.target.value)}
+                  placeholder={nombaPlatform.test.hasWebhookSecret ? "Stored key unchanged" : "Enter sandbox webhook key"}
+                  disabled={!canEditSettings}
+                  autoComplete="new-password"
+                />
+              </Field>
+            </div>
+          </Card>
+
+          <Card tone="mint">
+            <CardHeader title="Live credentials" description="Used for platform-managed production Nomba checkout, recurring charges, payouts, and webhooks." />
+            <div className="adm-form-grid">
+              <Field label="Base URL">
+                <TextInput value={nombaLiveBaseUrl} onChange={(e) => setNombaLiveBaseUrl(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Parent account ID">
+                <TextInput value={nombaLiveAccountId} onChange={(e) => setNombaLiveAccountId(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Sub-account ID">
+                <TextInput value={nombaLiveSubAccountId} onChange={(e) => setNombaLiveSubAccountId(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Client ID">
+                <TextInput value={nombaLiveClientId} onChange={(e) => setNombaLiveClientId(e.target.value)} disabled={!canEditSettings} />
+              </Field>
+              <Field label="Client secret">
+                <TextInput
+                  type="password"
+                  value={nombaLiveClientSecret}
+                  onChange={(e) => setNombaLiveClientSecret(e.target.value)}
+                  placeholder={nombaPlatform.live.hasClientSecret ? "Stored secret unchanged" : "Enter live client secret"}
+                  disabled={!canEditSettings}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="Webhook signing key">
+                <TextInput
+                  type="password"
+                  value={nombaLiveWebhookSecret}
+                  onChange={(e) => setNombaLiveWebhookSecret(e.target.value)}
+                  placeholder={nombaPlatform.live.hasWebhookSecret ? "Stored key unchanged" : "Enter live webhook key"}
+                  disabled={!canEditSettings}
+                  autoComplete="new-password"
+                />
+              </Field>
+            </div>
+            {canEditSettings ? (
+              <div className="adm-form-actions">
+                <Button variant="ghost" onClick={() => void handleSaveNombaPlatformConfig()} disabled={savingNomba}>
+                  {savingNomba ? "Saving…" : "Save Nomba config"}
+                </Button>
+                <Button onClick={handleActivateLiveNomba} disabled={savingNomba || nombaLiveActive}>
+                  {nombaLiveActive ? "Live active" : "Activate live"}
+                </Button>
+              </div>
+            ) : null}
           </Card>
         </section>
       ) : null}

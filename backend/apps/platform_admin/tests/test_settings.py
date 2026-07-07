@@ -11,6 +11,7 @@ from apps.platform_admin.selectors.settings import (
     DEFAULT_ADAPTER_STATUS,
     DEFAULT_KEY,
     DEFAULT_POLICY,
+    get_platform_nomba_config,
 )
 
 pytestmark = pytest.mark.django_db
@@ -251,3 +252,48 @@ def test_settings_patch_camelcase_adapter_alias(platform_admin_owner):
     resp = client.patch(URL, data={"adapterStatus": new_adapters}, format="json")
     assert resp.status_code == 200
     assert resp.json()["settings"]["adapterStatus"][0]["name"] == "Adapter Y"
+
+
+def test_settings_patch_updates_platform_nomba_config_with_encrypted_secrets(platform_admin_owner):
+    client = APIClient()
+    _sign_in(client, platform_admin_owner.email)
+
+    resp = client.patch(
+        URL,
+        data={
+            "nombaPlatform": {
+                "activeMode": "live",
+                "liveActive": True,
+                "test": {
+                    "baseUrl": "https://sandbox.nomba.com",
+                    "accountId": "test-account",
+                    "subAccountId": "test-sub",
+                    "clientId": "test-client",
+                    "clientSecret": "test-secret",
+                    "webhookSecret": "test-webhook",
+                },
+                "live": {
+                    "baseUrl": "https://api.nomba.com",
+                    "accountId": "live-account",
+                    "subAccountId": "live-sub",
+                    "clientId": "live-client",
+                    "clientSecret": "live-secret",
+                    "webhookSecret": "live-webhook",
+                },
+            }
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 200, resp.content
+    body = resp.json()["settings"]
+    assert body["nombaPlatform"]["activeMode"] == "live"
+    assert body["nombaPlatform"]["live"]["liveActive"] is True
+    assert body["nombaPlatform"]["test"]["hasClientSecret"] is True
+    assert body["nombaPlatform"]["live"]["hasWebhookSecret"] is True
+    assert "nombaPlatformLiveClientSecretEncrypted" not in body["policy"]
+
+    row = PlatformSetting.objects.get(key=DEFAULT_KEY)
+    assert row.policy["nombaPlatformLiveClientSecretEncrypted"] != "live-secret"
+    assert get_platform_nomba_config("live")["client_secret"] == "live-secret"
+    assert get_platform_nomba_config("live")["webhook_secret"] == "live-webhook"
