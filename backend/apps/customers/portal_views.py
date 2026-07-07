@@ -49,11 +49,9 @@ from apps.subscriptions.serializers import (
     ChangePlanPayload,
     SubscriptionSerializer,
 )
-from apps.subscriptions.services.activate_subscription import (
-    activate_subscription as activate_subscription_service,
-)
 from apps.subscriptions.services.change_plan import change_plan as change_plan_service
 from apps.subscriptions.services.change_plan import preview_change as preview_change_service
+from apps.subscriptions.services.checkout import start_subscription_tokenized_checkout
 from apps.subscriptions.services.create_subscription import (
     create_subscription as create_subscription_service,
 )
@@ -78,8 +76,11 @@ class HasPortalAction(BasePermission):
     def has_permission(self, request, view):
         session: PortalSession | None = getattr(request, "portal_session", None)
         required = getattr(view, "portal_action", "") or self.required_action
+        allowed_any = getattr(view, "portal_actions", ())
         if session is None:
             return False
+        if allowed_any:
+            return any(action in (session.allowed_actions or []) for action in allowed_any)
         if not required:
             return True
         return required in (session.allowed_actions or [])
@@ -413,9 +414,9 @@ def _serialize_portal_plan(plan: Plan) -> dict:
 
 
 class PortalPlansView(_PortalView):
-    """Available plans the customer can switch to (gated by allow_change_plan)."""
+    """Available plans the customer can switch to or subscribe to."""
 
-    portal_action = "change_plan"
+    portal_actions = ("change_plan", "subscribe")
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
@@ -540,10 +541,11 @@ class PortalChangePlanView(_PortalView):
 class PortalSubscribeView(_PortalView):
     """Customer self-service subscribe to a plan from the portal.
 
-    Creates the subscription via ``create_subscription`` then activates it
-    (with trial if the plan defines one) so it shows up immediately. Refuses
-    if the customer already has a non-terminal subscription — plan changes
-    must go through ``PortalChangePlanView`` instead.
+    Creates an incomplete subscription and starts hosted card checkout. The
+    subscription is activated only after the processor confirms payment and
+    returns a reusable payment token. Refuses if the customer already has a
+    non-terminal subscription — plan changes must go through
+    ``PortalChangePlanView`` instead.
     """
 
     portal_action = "subscribe"
@@ -585,11 +587,6 @@ class PortalSubscribeView(_PortalView):
             environment=session.environment,
             status=Plan.Status.ACTIVE,
         )
-        default_pm = (
-            customer.payment_methods.exclude(status=PaymentMethod.Status.REVOKED)
-            .order_by("-is_default", "-created_at")
-            .first()
-        )
         try:
             subscription = create_subscription_service(
                 merchant=session.merchant,
@@ -597,14 +594,12 @@ class PortalSubscribeView(_PortalView):
                 customer=customer,
                 plan=plan,
                 quantity=1,
-                default_payment_method=default_pm,
                 metadata={"source": "customer_portal"},
                 actor_user=None,
                 request=request,
             )
-            subscription = activate_subscription_service(
+            invoice, nomba_response = start_subscription_tokenized_checkout(
                 subscription=subscription,
-                with_trial=plan.trial_days > 0,
                 actor_user=None,
                 request=request,
             )
@@ -624,11 +619,21 @@ class PortalSubscribeView(_PortalView):
             metadata={
                 "plan_id": str(plan.id),
                 "plan_name": plan.name,
-                "with_trial": plan.trial_days > 0,
+                "checkout_started": bool(invoice.hosted_payment_url),
+                "invoice_id": str(invoice.id),
             },
             request=request,
         )
         return Response(
-            {"subscription": SubscriptionSerializer(subscription).data},
+            {
+                "subscription": SubscriptionSerializer(subscription).data,
+                "invoice_id": str(invoice.id),
+                "checkout_url": invoice.hosted_payment_url,
+                "order_reference": str(
+                    (invoice.metadata or {}).get("nomba_checkout_order_reference") or ""
+                ),
+                "processor": "nomba",
+                "nomba": nomba_response,
+            },
             status=status.HTTP_201_CREATED,
         )

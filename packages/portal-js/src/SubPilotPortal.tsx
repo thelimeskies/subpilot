@@ -309,7 +309,19 @@ export function SubPilotPortal({
       if (activeSubscription) {
         await client.changePlan(token, activeSubscription.id, selectedPlanId);
       } else {
-        await client.subscribe(token, selectedPlanId);
+        const checkout = await client.subscribe(token, selectedPlanId);
+        if (!checkout.checkoutUrl) {
+          throw new Error("The secure card checkout did not return a payment link.");
+        }
+        window.sessionStorage?.setItem("subpilot:lastPortalToken", token);
+        window.sessionStorage?.setItem("subpilot:lastNombaCheckoutInvoiceId", checkout.invoiceId);
+        if (checkout.orderReference) {
+          window.sessionStorage?.setItem("subpilot:lastNombaCheckoutOrderReference", checkout.orderReference);
+        } else {
+          window.sessionStorage?.removeItem("subpilot:lastNombaCheckoutOrderReference");
+        }
+        window.location.assign(checkout.checkoutUrl);
+        return;
       }
       setPlanModalOpen(false);
       setPlans(null); // force re-fetch on next open (current plan changed)

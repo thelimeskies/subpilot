@@ -188,7 +188,13 @@ export interface SubPilotPortalClient {
   listPlans(token: string): Promise<PortalPlansResponse>;
   previewChangePlan(token: string, subscriptionId: string, newPlanId: string): Promise<PortalChangePreview>;
   changePlan(token: string, subscriptionId: string, newPlanId: string): Promise<{ subscription: PortalSubscription; preview: PortalChangePreview }>;
-  subscribe(token: string, planId: string): Promise<{ subscription: PortalSubscription }>;
+  subscribe(token: string, planId: string): Promise<{
+    subscription: PortalSubscription;
+    invoiceId: string;
+    checkoutUrl: string;
+    orderReference: string;
+    processor: "nomba";
+  }>;
 }
 
 export function createSubPilotPortalClient(options: SubPilotPortalOptions): SubPilotPortalClient {
@@ -354,11 +360,21 @@ export function createSubPilotPortalClient(options: SubPilotPortalOptions): SubP
     async subscribe(token, planId) {
       const body = await portalRequest<{
         subscription: BackendContext["subscriptions"][number];
+        invoice_id: string;
+        checkout_url: string;
+        order_reference?: string;
+        processor: "nomba";
       }>(token, "/portal/subscribe", {
         method: "POST",
         json: { plan_id: planId }
       });
-      return { subscription: mapSubscription(body.subscription) };
+      return {
+        subscription: mapSubscription(body.subscription),
+        invoiceId: body.invoice_id,
+        checkoutUrl: body.checkout_url,
+        orderReference: body.order_reference ?? "",
+        processor: body.processor
+      };
     }
   };
 }

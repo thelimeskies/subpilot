@@ -277,6 +277,104 @@ def test_portal_payment_method_checkout_starts_nomba_tokenized_checkout(monkeypa
     assert len(invoice.hosted_payment_url) > 500
 
 
+def test_portal_plans_allows_subscribe_only_sessions():
+    user, customer = _setup_workspace()
+    subscription = customer.subscriptions.get()
+    subscription.status = Subscription.Status.CANCELED
+    subscription.save(update_fields=["status", "updated_at"])
+    client = _signed_in_client(user)
+    token, _session = _portal_token(
+        client,
+        customer,
+        actions=["view_subscriptions", "subscribe"],
+    )
+
+    response = APIClient().get(
+        "/api/v1/portal/plans",
+        HTTP_AUTHORIZATION=f"Portal {token}",
+    )
+
+    assert response.status_code == 200, response.content
+    assert response.json()["plans"][0]["name"] == "Pro"
+
+
+@override_settings(NOMBA_CHECKOUT_CALLBACK_URL="https://example.test/nomba/callback")
+def test_portal_subscribe_starts_checkout_without_trial_activation(monkeypatch):
+    user, customer = _setup_workspace()
+    environment = customer.environment
+    environment.nomba_integration_mode = Environment.NombaIntegrationMode.BYOK
+    environment.nomba_account_id = "acct_123"
+    environment.nomba_client_id = "client_123"
+    environment.nomba_client_secret = "secret_123"
+    environment.nomba_access_token = "access-token"
+    environment.nomba_token_expires_at = timezone.now() + timedelta(hours=1)
+    environment.save(
+        update_fields=[
+            "nomba_integration_mode",
+            "nomba_account_id",
+            "nomba_client_id",
+            "nomba_client_secret_encrypted",
+            "nomba_access_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+    existing = customer.subscriptions.get()
+    existing.status = Subscription.Status.CANCELED
+    existing.save(update_fields=["status", "updated_at"])
+    plan = existing.plan
+    plan.trial_days = 30
+    plan.save(update_fields=["trial_days", "updated_at"])
+    checkout_link = "https://checkout.nomba.test/order/new-subscription"
+    seen = {}
+
+    def fake_urlopen(req, timeout):
+        seen["url"] = req.full_url
+        seen["body"] = json.loads(req.data.decode())
+        return _NombaResponse(
+            {
+                "code": "00",
+                "description": "created",
+                "data": {
+                    "checkoutLink": checkout_link,
+                    "orderReference": "checkout-new-subscription",
+                },
+            }
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+    client = _signed_in_client(user)
+    token, _session = _portal_token(
+        client,
+        customer,
+        actions=["view_subscriptions", "view_invoices", "subscribe"],
+    )
+
+    response = APIClient().post(
+        "/api/v1/portal/subscribe",
+        data={"plan_id": str(plan.id)},
+        format="json",
+        HTTP_AUTHORIZATION=f"Portal {token}",
+    )
+
+    assert response.status_code == 201, response.content
+    body = response.json()
+    assert body["checkout_url"] == checkout_link
+    assert body["order_reference"] == "checkout-new-subscription"
+    assert body["processor"] == "nomba"
+    new_subscription = customer.subscriptions.exclude(id=existing.id).get()
+    assert new_subscription.status == Subscription.Status.INCOMPLETE
+    assert new_subscription.trial_end is None
+    assert new_subscription.default_payment_method_id is None
+    invoice = Invoice.objects.get(id=body["invoice_id"])
+    assert invoice.subscription == new_subscription
+    assert invoice.hosted_payment_url == checkout_link
+    assert invoice.metadata["initial_subscription_checkout"] is True
+    assert seen["url"] == "https://sandbox.nomba.com/v1/checkout/order"
+    assert seen["body"]["tokenizeCard"] is True
+    assert seen["body"]["order"]["orderMetaData"]["subscription_id"] == str(new_subscription.id)
+
+
 def test_portal_rejects_direct_nomba_card_token_attachment():
     user, customer = _setup_workspace()
     client = _signed_in_client(user)
