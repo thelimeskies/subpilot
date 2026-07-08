@@ -1,4 +1,4 @@
-[![Watch the SubPilot end-to-end production demo](./subpilot-demo-thumbnail.jpg)](./subpilot-end-to-end-demo-20260707.mp4)
+https://github.com/user-attachments/assets/5a3f1945-339e-4cae-950b-f4078c382450
 
 [Watch or download the SubPilot end-to-end production demo video](./subpilot-end-to-end-demo-20260707.mp4)
 
