@@ -218,6 +218,19 @@ function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
 }
 
+const emptyOrg: MerchantOrg = {
+  ...seedOrg,
+  id: "",
+  legalName: "",
+  tradingName: "Merchant workspace",
+  portalSubdomain: "",
+  taxId: "",
+  statementDescriptor: "",
+  payoutBank: "",
+  payoutAccount: "",
+  createdAt: ""
+};
+
 let idCounter = 1_000;
 function nextId(prefix: string) {
   idCounter += 1;
@@ -248,18 +261,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   // The merchant org is rarely mutated, but Settings → Organization edits it,
   // so we still hold it in state.
-  const [org, setOrg] = useState<MerchantOrg>(() => clone(seedOrg));
-  const [plans, setPlans] = useState<Plan[]>(() => clone(seedPlans));
-  const [customers, setCustomers] = useState<Customer[]>(() => clone(seedCustomers));
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => clone(seedSubscriptions));
-  const [invoices, setInvoices] = useState<Invoice[]>(() => clone(seedInvoices));
-  const [payments, setPayments] = useState<PaymentRecord[]>(() => clone(seedPayments));
-  const [recoveryItems, setRecoveryItems] = useState<RecoveryItem[]>(() => clone(seedRecoveryItems));
-  const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>(() => clone(seedWebhookEndpoints));
-  const [webhookEvents, setWebhookEvents] = useState<WebhookEventRecord[]>(() => clone(seedWebhookEvents));
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(() => clone(seedApiKeys));
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => clone(seedTeamMembers));
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => clone(seedAuditEvents));
+  const [org, setOrg] = useState<MerchantOrg>(() => clone(emptyOrg));
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [recoveryItems, setRecoveryItems] = useState<RecoveryItem[]>([]);
+  const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>([]);
+  const [webhookEvents, setWebhookEvents] = useState<WebhookEventRecord[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [settings, setSettings] = useState<MerchantSettings>(() => clone(defaultSettings));
   const [resourcesLoading, setResourcesLoading] = useState(true);
 
@@ -309,6 +322,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       setResourcesLoading(true);
+      setOrg(clone(emptyOrg));
+      setPlans([]);
+      setCustomers([]);
+      setSubscriptions([]);
+      setInvoices([]);
+      setPayments([]);
+      setRecoveryItems([]);
+      setWebhookEndpoints([]);
+      setWebhookEvents([]);
+      setApiKeys([]);
+      setTeamMembers([]);
+      setAuditEvents([]);
       try {
         const resources = await loadMerchantResourcesForPath(location.pathname);
         if (cancelled) return;
