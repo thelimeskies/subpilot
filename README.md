@@ -306,7 +306,10 @@ Production or deployed URLs used by the app defaults:
 | Merchant dashboard | `https://app.subpilot.kylodo.com` |
 | Customer portal | `https://portal.subpilot.kylodo.com` |
 | Platform admin | `https://platform-admin.subpilot.kylodo.com` |
+| Mail delivery preview | `https://mail.subpilot.kylodo.com/` |
 | Nomba central webhook callback | `https://api.subpilot.kylodo.com/api/v1/payments/webhooks/nomba/` |
+
+Application emails sent from the deployed environments can be inspected in the mail delivery preview inbox.
 
 Local development URLs:
 
