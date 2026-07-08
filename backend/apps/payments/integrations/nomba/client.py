@@ -377,10 +377,17 @@ class NombaClient:
                     return str(payload[key])
         return fallback
 
+    @classmethod
+    def _is_expired_jwt_error(cls, payload: Any) -> bool:
+        message = cls._error_message(payload, "")
+        return "jwt expired" in message.lower()
+
     def _error_for_status(self, status_code: int, payload: dict[str, Any]) -> NombaRequestError:
         message = self._error_message(payload, f"Nomba request failed ({status_code}).")
         cls: type[NombaRequestError]
-        if status_code == 400:
+        if self._is_expired_jwt_error(payload):
+            cls = NombaAuthError
+        elif status_code == 400:
             cls = NombaValidationError
         elif status_code == 401:
             cls = NombaAuthError

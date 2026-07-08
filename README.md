@@ -331,7 +331,7 @@ These are local demo credentials only. Seed with the commands below so the front
 Shared local demo password:
 
 ```text
-Subpilot1!
+<demo-password>
 ```
 
 MFA bypass code for demo accounts with MFA enabled:
@@ -344,25 +344,25 @@ Merchant dashboard demo accounts:
 
 | Role | Email | Password | Notes |
 |---|---|---|---|
-| Owner | `owner@acme.test` | `Subpilot1!` | MFA enabled; main E2E account |
-| Finance | `finance@acme.test` | `Subpilot1!` | MFA enabled |
-| Support | `support@acme.test` | `Subpilot1!` | No MFA |
-| Admin | `admin@fitplus.test` | `Subpilot1!` | MFA enabled |
-| New owner | `new@startup.test` | `Subpilot1!` | Onboarding incomplete |
+| Owner | `owner@acme.test` | `<demo-password>` | MFA enabled; main E2E account |
+| Finance | `finance@acme.test` | `<demo-password>` | MFA enabled |
+| Support | `support@acme.test` | `<demo-password>` | No MFA |
+| Admin | `admin@fitplus.test` | `<demo-password>` | MFA enabled |
+| New owner | `new@startup.test` | `<demo-password>` | Onboarding incomplete |
 
 Platform admin console demo accounts:
 
 | Role | Email | Password |
 |---|---|---|
-| Owner | `owner@subpilot.dev` | `Subpilot1!` |
-| Operator | `ops@subpilot.dev` | `Subpilot1!` |
-| Support | `support@subpilot.dev` | `Subpilot1!` |
+| Owner | `owner@subpilot.dev` | `<demo-password>` |
+| Operator | `ops@subpilot.dev` | `<demo-password>` |
+| Support | `support@subpilot.dev` | `<demo-password>` |
 
 Django admin/operator bootstrap account:
 
 | Email | Password | Purpose |
 |---|---|---|
-| `admin@example.test` | `Subpilot1!` | Django staff/superuser created by `create_platform_admin` |
+| `admin@example.test` | `<demo-password>` | Django staff/superuser created by `create_platform_admin` |
 
 ## Local Setup
 
@@ -385,7 +385,7 @@ DJANGO_SECRET_KEY=local-dev-secret
 POSTGRES_PASSWORD=subpilot
 FIELD_ENCRYPTION_KEY=Z3DRjAWuNrMK4wYwzL_oS5G2mHxEK4sB-_ucVE9hhxw=
 PLATFORM_ADMIN_EMAIL=admin@example.test
-PLATFORM_ADMIN_PASSWORD=Subpilot1!
+PLATFORM_ADMIN_PASSWORD=<demo-password>
 DEMO_MFA_BYPASS_CODE=123456
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://127.0.0.1:5176,http://127.0.0.1:5177
 FRONTEND_MERCHANT_URL=http://localhost:5174
@@ -414,17 +414,17 @@ Seed local demo data:
 
 ```bash
 cd backend
-docker compose exec web python manage.py seed_auth --password 'Subpilot1!'
-docker compose exec web python manage.py seed_demo --password 'Subpilot1!'
-docker compose exec web python manage.py seed_platform_admins --password 'Subpilot1!'
-docker compose exec web python manage.py create_platform_admin --email admin@example.test --password 'Subpilot1!'
+docker compose exec web python manage.py seed_auth --password '<demo-password>'
+docker compose exec web python manage.py seed_demo --password '<demo-password>'
+docker compose exec web python manage.py seed_platform_admins --password '<demo-password>'
+docker compose exec web python manage.py create_platform_admin --email admin@example.test --password '<demo-password>'
 ```
 
 Start frontend apps from the repo root. Set `VITE_DEMO_PASSWORD` so the sign-in demo chips prefill the password field:
 
 ```bash
-VITE_DEMO_PASSWORD='Subpilot1!' npm run dev:merchant
-VITE_DEMO_PASSWORD='Subpilot1!' npm run dev:admin
+VITE_DEMO_PASSWORD='<demo-password>' npm run dev:merchant
+VITE_DEMO_PASSWORD='<demo-password>' npm run dev:admin
 npm run dev:customer-portal
 npm run dev:portal-demo
 npm run dev:landing
@@ -481,10 +481,10 @@ The Nomba adapter contract lives in `docs/technical/nomba-integration-contract.m
 
 The happy path uses Acme Learning Hub in test mode:
 
-1. Sign into the merchant dashboard at `http://localhost:5174` as `owner@acme.test` / `Subpilot1!`.
+1. Sign into the merchant dashboard at `http://localhost:5174` as `owner@acme.test` / `<demo-password>`.
 2. Complete MFA with `123456`.
 3. Review dashboard metrics, plans, customers, subscriptions, invoices, dunning runs, and webhook events.
-4. Open the platform admin at `http://localhost:5175` as `owner@subpilot.dev` / `Subpilot1!`.
+4. Open the platform admin at `http://localhost:5175` as `owner@subpilot.dev` / `<demo-password>`.
 5. Inspect merchants, payments, webhook health, support tickets, KYC, settings, analytics, and audit logs.
 6. Open the customer portal at `http://localhost:5176` or the embeddable portal demo at `http://localhost:5177`.
 7. Show Nomba integration settings and webhook callback paths.
