@@ -139,7 +139,7 @@ class NombaClient:
                 authorized=True,
                 access_token=access_token,
             )
-        except NombaAuthError:
+        except (NombaAuthError, NombaNotFoundError):
             return self.issue_token()
         data = payload.get("data") if isinstance(payload, dict) else {}
         self._persist_token(data if isinstance(data, dict) else {})

@@ -71,8 +71,6 @@ services:
     build: .
     command: python manage.py migrate --noinput
     environment: *backend-environment
-    volumes:
-      - .:/app
     depends_on:
       db:
         condition: service_healthy
@@ -83,7 +81,6 @@ services:
     command: sh -c "mkdir -p /app/staticfiles && chown -R app:app /app/staticfiles && su app -c 'python manage.py collectstatic --clear --noinput'"
     environment: *backend-environment
     volumes:
-      - .:/app
       - subpilot_staticfiles:/app/staticfiles
 
   web:
@@ -91,7 +88,6 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     environment: *backend-environment
     volumes:
-      - .:/app
       - subpilot_staticfiles:/app/staticfiles
     ports:
       - "8000:8000"
@@ -109,8 +105,6 @@ services:
     build: .
     command: celery -A config worker -Q billing,payments,dunning,webhooks,notifications,analytics -l info
     environment: *backend-environment
-    volumes:
-      - .:/app
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -121,8 +115,6 @@ services:
     build: .
     command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     environment: *backend-environment
-    volumes:
-      - .:/app
     depends_on:
       migrate:
         condition: service_completed_successfully
