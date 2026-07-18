@@ -489,7 +489,24 @@ class NombaClient:
 
     # Online Checkout / Charge
     def create_checkout_order(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.request("POST", "/v1/checkout/order", body=payload)
+        try:
+            return self.request("POST", "/v1/checkout/order", body=payload)
+        except (NombaAuthError, NombaNotFoundError):
+            if self.credentials.mode != "test" or self.environment.nomba_integration_mode != "platform":
+                raise
+            logger.warning(
+                "nomba.sandbox_checkout_public_fallback "
+                '{"environment_id": "%s", "merchant_id": "%s"}',
+                self.environment.id,
+                self.environment.merchant_id,
+            )
+            return self.request(
+                "POST",
+                "/v1/checkout/order",
+                body=payload,
+                authorized=False,
+                enforce_live_activation=False,
+            )
 
     def cancel_checkout_order(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/v1/checkout/order/cancel", body=payload)

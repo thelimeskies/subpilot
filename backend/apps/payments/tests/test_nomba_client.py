@@ -365,6 +365,78 @@ def test_refresh_token_falls_back_to_issue_when_refresh_token_is_not_found(monke
     assert calls[2][2]["Authorization"] == "Bearer issued-access"
 
 
+@override_settings(
+    NOMBA_PLATFORM_TEST_ACCOUNT_ID="platform-account",
+    NOMBA_PLATFORM_TEST_CLIENT_ID="suspended-client",
+    NOMBA_PLATFORM_TEST_CLIENT_SECRET="suspended-secret",
+)
+def test_platform_sandbox_checkout_falls_back_to_public_endpoint_when_credentials_are_suspended(monkeypatch):
+    env = _environment(byok=False)
+    env.nomba_access_token = "expired-access"
+    env.nomba_refresh_token = "missing-refresh-token"
+    env.nomba_token_expires_at = timezone.now() - timedelta(minutes=1)
+    env.save(
+        update_fields=[
+            "nomba_access_token_encrypted",
+            "nomba_refresh_token_encrypted",
+            "nomba_token_expires_at",
+            "updated_at",
+        ]
+    )
+    calls = []
+
+    def fake_urlopen(req, timeout):
+        calls.append((req.get_method(), req.full_url, dict(req.header_items()), req.data))
+        if req.full_url.endswith("/v1/auth/token/refresh"):
+            raise error.HTTPError(
+                req.full_url,
+                404,
+                "Not Found",
+                {},
+                _BytesReader(
+                    {
+                        "code": "404",
+                        "description": "Refresh Token not found",
+                        "status": False,
+                    }
+                ),
+            )
+        if req.full_url.endswith("/v1/auth/token/issue"):
+            raise error.HTTPError(
+                req.full_url,
+                404,
+                "Not Found",
+                {},
+                _BytesReader(
+                    {
+                        "code": "404",
+                        "description": "Client record not found or client has been suspended",
+                        "status": False,
+                    }
+                ),
+            )
+        return _Response(
+            {
+                "code": "00",
+                "data": {"checkoutLink": "https://pay.nomba.com/sandbox/checkout-ref"},
+            }
+        )
+
+    monkeypatch.setattr("apps.payments.integrations.nomba.client.request.urlopen", fake_urlopen)
+
+    client = NombaClient(environment=env, credentials=credentials_for_environment(env))
+    payload = client.create_checkout_order({"order": {"orderReference": "checkout-ref"}})
+
+    assert payload["data"]["checkoutLink"] == "https://pay.nomba.com/sandbox/checkout-ref"
+    assert len(calls) == 3
+    assert calls[0][1].endswith("/v1/auth/token/refresh")
+    assert calls[0][2]["Authorization"] == "Bearer expired-access"
+    assert calls[1][1].endswith("/v1/auth/token/issue")
+    assert "Authorization" not in calls[1][2]
+    assert calls[2][1].endswith("/v1/checkout/order")
+    assert "Authorization" not in calls[2][2]
+
+
 def test_expired_token_refresh_does_not_recurse_before_checkout(monkeypatch):
     env = _environment()
     env.nomba_access_token = "expired-access"
